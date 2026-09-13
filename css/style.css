@@ -1,0 +1,136 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f14; font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', system-ui, sans-serif; color: #e8e2cf; user-select: none; }
+canvas#game { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; cursor: default; }
+canvas#game.attackCursor { cursor: crosshair; }
+canvas#game.enemyHover { cursor: pointer; }
+.hidden { display: none !important; }
+.hud { position: fixed; z-index: 5; }
+
+/* ---------- 상단 ---------- */
+#topbar { top: 8px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; background: rgba(10, 14, 20, .85); border: 1px solid #5b4a26; border-radius: 6px; padding: 5px 16px; font-size: 14px; }
+#topbar .team { display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 16px; }
+#topbar .team .lbl { font-size: 11px; font-weight: normal; color: #9a917a; }
+#topbar .blue { color: #6aa8ff; }
+#topbar .red { color: #ff7070; }
+#timer { font-size: 18px; font-weight: bold; min-width: 64px; text-align: center; color: #f0e6c8; }
+#topright { top: 8px; right: 10px; display: flex; gap: 12px; background: rgba(10, 14, 20, .8); padding: 5px 10px; border-radius: 4px; font-size: 13px; color: #c8bfa6; }
+
+/* ---------- 대상 정보 ---------- */
+#targetFrame { top: 10px; left: 10px; min-width: 210px; background: rgba(10, 14, 20, .88); border: 1px solid #5b4a26; border-radius: 6px; padding: 8px 10px; font-size: 12px; }
+#targetFrame .tname { font-weight: bold; font-size: 14px; margin-bottom: 4px; }
+#targetFrame .tbar { height: 10px; background: #222; border-radius: 2px; overflow: hidden; margin: 4px 0; }
+#targetFrame .tbar div { height: 100%; }
+#targetFrame .trow { display: flex; gap: 10px; color: #b9b09a; flex-wrap: wrap; }
+#targetFrame .tnote { color: #ffcf5a; margin-top: 3px; }
+
+/* ---------- 안내 ---------- */
+#announce { position: fixed; top: 64px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; }
+#announce .msg { background: linear-gradient(90deg, transparent, rgba(8, 10, 16, .9) 15%, rgba(8, 10, 16, .9) 85%, transparent); padding: 7px 60px; font-size: 18px; font-weight: bold; text-shadow: 0 0 6px #000; animation: fadeMsg 3.6s forwards; white-space: nowrap; }
+#announce .msg.good { color: #7fc4ff; }
+#announce .msg.bad { color: #ff7a7a; }
+#announce .msg.info { color: #f0e0a8; }
+@keyframes fadeMsg { 0% { opacity: 0; transform: translateY(-8px); } 8% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+#buffBar { bottom: 150px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; }
+#buffBar .buff { width: 34px; height: 34px; border-radius: 4px; border: 2px solid; background: rgba(10, 14, 20, .9); position: relative; display: flex; align-items: center; justify-content: center; font-size: 17px; }
+#buffBar .buff span { position: absolute; bottom: -2px; right: 1px; font-size: 10px; font-weight: bold; text-shadow: 0 0 3px #000, 0 0 3px #000; }
+
+/* ---------- 하단 HUD ---------- */
+#bottomHud { bottom: 0; left: 50%; transform: translateX(-50%); display: flex; align-items: flex-end; gap: 0; background: linear-gradient(#141b24, #0b1017); border: 2px solid #5b4a26; border-bottom: none; border-radius: 10px 10px 0 0; padding: 8px 10px 8px; box-shadow: 0 0 20px rgba(0, 0, 0, .6); }
+#statsPanel { display: grid; grid-template-columns: auto auto; gap: 2px 10px; font-size: 12px; padding: 4px 10px 4px 2px; color: #cfc6ad; align-self: center; min-width: 120px; }
+#statsPanel .st { display: flex; gap: 4px; align-items: center; white-space: nowrap; }
+#statsPanel .st i { font-style: normal; width: 16px; text-align: center; opacity: .85; }
+#portrait { position: relative; width: 92px; height: 92px; margin-right: 8px; align-self: center; }
+#portraitInner { width: 84px; height: 84px; margin: 4px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #4f79c9, #1a2e57); border: 3px solid #b8943d; display: flex; align-items: center; justify-content: center; font-size: 38px; color: #e8e0c8; }
+#portrait.dead #portraitInner { filter: grayscale(1) brightness(.5); }
+#levelBadge { position: absolute; bottom: -2px; left: 50%; transform: translateX(-50%); background: #0b1017; border: 2px solid #b8943d; border-radius: 10px; padding: 0 7px; font-size: 13px; font-weight: bold; }
+#xpRing { position: absolute; left: -6px; top: 6px; bottom: 6px; width: 6px; background: #1e1a10; border-radius: 3px; overflow: hidden; display: flex; align-items: flex-end; }
+#xpFill { width: 100%; background: linear-gradient(#e2c2ff, #8b4fd6); height: 0; }
+
+#centerPanel { display: flex; flex-direction: column; gap: 4px; }
+#abilityRow { display: flex; gap: 5px; align-items: flex-end; }
+.slot { position: relative; width: 50px; height: 50px; border: 2px solid #4e4430; border-radius: 5px; background: #1a2230; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.slot.big { width: 54px; height: 54px; }
+.slot .key { position: absolute; bottom: 1px; right: 3px; font-size: 11px; font-weight: bold; color: #e8dcae; text-shadow: 0 0 3px #000; z-index: 2; }
+.slot.ability.locked { background: repeating-linear-gradient(45deg, #161c26, #161c26 6px, #1b2330 6px, #1b2330 12px); }
+.slot.ability.locked::after { content: '—'; color: #555; font-size: 18px; }
+.slot.spell .icon { font-size: 24px; }
+#spellD .icon { color: #5fe07c; }
+#spellF .icon { color: #ffe36b; }
+.slot .cd { position: absolute; inset: 0; background: rgba(0, 0, 0, .7); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 15px; color: #fff; z-index: 1; }
+.slot .cd:empty { display: none; }
+.spacer { width: 8px; }
+
+.bar { position: relative; height: 18px; background: #0a0d12; border: 1px solid #3a3326; border-radius: 3px; overflow: hidden; width: 330px; }
+.bar .fill { position: absolute; left: 0; top: 0; bottom: 0; transition: width .1s; }
+#hpBar .fill { background: linear-gradient(#5fd66a, #2d8b3a); }
+#resBar { height: 12px; }
+#resBar .fill { width: 100%; background: linear-gradient(#3a3f4a, #262a33); }
+.bar .txt { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; text-shadow: 0 0 3px #000, 0 0 3px #000; }
+#resBar .txt { font-size: 9px; color: #888; font-weight: normal; }
+#hpBar .ticks { position: absolute; inset: 0; }
+#hpBar .ticks i { position: absolute; top: 0; bottom: 45%; width: 1px; background: rgba(0, 0, 0, .55); }
+
+#rightPanel { margin-left: 10px; display: flex; flex-direction: column; gap: 5px; }
+#items { display: grid; grid-template-columns: repeat(3, 42px); gap: 4px; }
+.item { width: 42px; height: 42px; border: 2px solid #4e4430; border-radius: 4px; background: #121822; position: relative; display: flex; align-items: center; justify-content: center; font-size: 22px; cursor: pointer; }
+.item .key { position: absolute; top: 0; left: 2px; font-size: 9px; color: #aaa; }
+.item .cnt { position: absolute; bottom: 0; right: 2px; font-size: 11px; font-weight: bold; text-shadow: 0 0 3px #000; }
+#goldRow { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+#goldText { color: #ffd34d; font-weight: bold; font-size: 15px; }
+#goldText::before { content: '● '; color: #d9a520; font-size: 11px; }
+#goldRow button { background: #1b2430; border: 1px solid #6b5a33; color: #f0dca0; border-radius: 4px; width: 32px; height: 26px; cursor: pointer; font-size: 15px; }
+#goldRow button:hover { background: #2a3645; }
+
+/* ---------- 미니맵 ---------- */
+#minimapWrap { right: 0; bottom: 0; border: 2px solid #5b4a26; border-right: none; border-bottom: none; background: #000; line-height: 0; }
+#minimap { width: 240px; height: 240px; cursor: pointer; }
+
+/* ---------- 사망/귀환 ---------- */
+#deathOverlay { position: fixed; inset: 0; z-index: 4; pointer-events: none; background: rgba(40, 40, 50, .35); backdrop-filter: grayscale(.9); display: flex; justify-content: center; }
+#deathText { margin-top: 110px; font-size: 26px; font-weight: bold; color: #ddd; text-shadow: 0 0 8px #000; text-align: center; }
+#channelBar { position: fixed; z-index: 6; bottom: 200px; left: 50%; transform: translateX(-50%); width: 260px; height: 20px; background: #0a0d12; border: 1px solid #6b5a33; border-radius: 3px; overflow: hidden; }
+#channelBar .fill { height: 100%; background: linear-gradient(#7fb8ff, #3063c0); width: 0; }
+#channelBar span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; text-shadow: 0 0 3px #000; }
+
+/* ---------- 상점 ---------- */
+.panel { position: fixed; z-index: 10; background: linear-gradient(#141b24, #0c1118); border: 2px solid #8b6f35; border-radius: 8px; box-shadow: 0 0 30px rgba(0, 0, 0, .8); }
+#shop { top: 50%; left: 50%; transform: translate(-50%, -55%); width: min(760px, 94vw); height: min(520px, 80vh); display: grid; grid-template-rows: auto 1fr; grid-template-columns: 1fr 250px; }
+.panelHead { grid-column: 1 / 3; display: flex; align-items: center; gap: 12px; padding: 8px 14px; border-bottom: 1px solid #3a3326; }
+.panelHead h2 { margin: 0; font-size: 18px; color: #f0dca0; }
+#shopNote { font-size: 12px; color: #ff8a6a; flex: 1; }
+.close { background: none; border: 1px solid #6b5a33; color: #ddd; border-radius: 4px; cursor: pointer; width: 28px; height: 28px; }
+#shopList { overflow-y: auto; padding: 10px; }
+#shopList h3 { margin: 6px 0; font-size: 12px; color: #9a917a; font-weight: normal; border-bottom: 1px solid #2a2519; }
+#shopList .grid { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.shopItem { width: 64px; text-align: center; cursor: pointer; padding: 4px 2px; border-radius: 4px; border: 1px solid transparent; }
+.shopItem:hover, .shopItem.sel { background: #1f2a38; border-color: #8b6f35; }
+.shopItem .ic { font-size: 26px; height: 34px; }
+.shopItem .price { font-size: 11px; color: #ffd34d; }
+.shopItem.poor .price { color: #a55; }
+#shopDetail { border-left: 1px solid #3a3326; padding: 12px; font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
+#shopDetail .dname { font-size: 16px; font-weight: bold; color: #f0dca0; }
+#shopDetail .dstats { color: #8fd0ff; line-height: 1.6; }
+#shopDetail .ddesc { color: #b9b09a; }
+#shopDetail button { background: #2d4a2d; border: 1px solid #6bb36b; color: #eee; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: bold; }
+#shopDetail button:disabled { background: #2a2a2a; border-color: #555; color: #777; cursor: not-allowed; }
+#shopDetail button.sell { background: #4a2d2d; border-color: #b36b6b; }
+
+/* ---------- 화면 ---------- */
+.screen { position: fixed; inset: 0; z-index: 20; background: radial-gradient(ellipse at center, rgba(14, 22, 36, .92), rgba(3, 5, 8, .97)); display: flex; overflow-y: auto; }
+.screenBox { text-align: center; max-width: 640px; padding: 30px; margin: auto; }
+.screenBox h1 { font-size: 56px; margin: 0 0 6px; color: #f0dca0; letter-spacing: 4px; text-shadow: 0 0 20px rgba(200, 160, 60, .5); }
+.screenBox h1 small { font-size: 18px; letter-spacing: 1px; color: #9a917a; }
+.screenBox .sub { color: #c8a85a; margin-top: 0; }
+.screenBox p { line-height: 1.6; }
+.blueTxt { color: #6aa8ff; }
+.redTxt { color: #ff7070; }
+.controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; text-align: left; margin: 22px auto; background: rgba(0, 0, 0, .35); border: 1px solid #3a3326; border-radius: 6px; padding: 14px 20px; font-size: 14px; }
+kbd { background: #222a36; border: 1px solid #5b4a26; border-bottom-width: 2px; border-radius: 3px; padding: 1px 6px; font-family: inherit; font-size: 12px; color: #f0dca0; }
+.bigBtn { display: block; margin: 12px auto 0; background: linear-gradient(#2a6fb8, #1b4a80); border: 2px solid #c8a85a; color: #fff; font-size: 20px; font-weight: bold; padding: 12px 50px; border-radius: 6px; cursor: pointer; font-family: inherit; min-width: 240px; }
+.bigBtn:hover { filter: brightness(1.2); }
+.bigBtn.ghost { background: transparent; }
+#endTitle.win { color: #7fc4ff; }
+#endTitle.lose { color: #ff6a6a; }
+#endStats { display: grid; grid-template-columns: auto auto; gap: 6px 30px; justify-content: center; margin: 20px 0; font-size: 16px; text-align: left; }
+#endStats b { color: #f0dca0; }
