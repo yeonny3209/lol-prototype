@@ -2,7 +2,8 @@
 const LANES = ['top', 'mid', 'bot'];
 
 class Game {
-  constructor() {
+  constructor(champId = 'orianna') {
+    this.champId = CHAMPIONS[champId] ? champId : 'orianna';
     this.time = 0;
     this.units = [];
     this.heroes = [];
@@ -48,15 +49,19 @@ class Game {
       return ts;
     });
     for (const def of CAMP_DEFS) this.camps.push(new Camp(this, def));
-    this.player = this.addUnit(new Hero(this, TEAM.BLUE));
+    this.player = this.addUnit(CHAMPIONS[this.champId].create(this, TEAM.BLUE));
     this.centerCamera();
 
     // 시간 이벤트 안내
+    const pl = this.player;
     this.timeline = [
       { at: 0.5, fn: () => this.announce('전장에 오신 것을 환영합니다!', 'info') },
       { at: CFG.FIRST_WAVE - 15, fn: () => this.announce('15초 후 미니언이 생성됩니다', 'info') },
       { at: CFG.CAMP_FIRST - 0.1, fn: () => this.announce('정글 몬스터가 나타났습니다', 'info') },
     ];
+    if (pl.abilityDefs) this.timeline.push({ at: 2.5, fn: () => pl.skillPoints > 0 && this.announce('Shift + Q/W/E/R 로 스킬을 배우세요', 'info') });
+    if ((pl.base.role || '').includes('미드')) this.timeline.push({ at: 5, fn: () => this.announce(pl.base.name + ': 미드 라인으로 이동하세요', 'info') });
+    this.timeline.sort((a, b) => a.at - b.at);
   }
 
   addUnit(u) {
@@ -108,6 +113,10 @@ class Game {
 
     for (let i = 0; i < this.units.length; i++) {
       const u = this.units[i];
+      if (u.alive) {
+        u.tickStatus(dt);
+        if (u.updateCC(dt)) continue;     // 에어본 중에는 행동 불가
+      }
       if (u.alive || u.kind === 'hero' || u.kind === 'inhibitor') u.update(dt);
     }
 
@@ -153,7 +162,7 @@ class Game {
   // 유닛끼리 겹치지 않게 밀어내기
   separate() {
     const arr = [];
-    for (const u of this.units) if (u.alive && !u.isStructure) arr.push(u);
+    for (const u of this.units) if (u.alive && !u.isStructure && !u.displace) arr.push(u);
     const n = arr.length;
     for (let i = 0; i < n; i++) {
       const a = arr[i];
@@ -251,7 +260,28 @@ class Game {
     return false;
   }
 
+  // ---------- 스킬 대상 찾기 (구조물 제외, 시야와 무관) ----------
+  enemiesInRadius(team, x, y, r) {
+    const out = [];
+    for (const u of this.units) {
+      if (!u.alive || u.isStructure || u.team === team || !this.isVulnerable(u)) continue;
+      const rr = r + u.radius;
+      if (dist2(u.x, u.y, x, y) <= rr * rr) out.push(u);
+    }
+    return out;
+  }
+
+  enemiesNearSegment(team, ax, ay, bx, by, width) {
+    const out = [];
+    for (const u of this.units) {
+      if (!u.alive || u.isStructure || u.team === team || !this.isVulnerable(u)) continue;
+      if (distToSegment(u.x, u.y, ax, ay, bx, by) <= width + u.radius) out.push(u);
+    }
+    return out;
+  }
+
   // ---------- 피해 / 사망 ----------
+  // opts: isAttack(기본 공격), crit, magic(마법 피해), trueDmg(고정 피해), ability, silent
   dealDamage(src, t, amount, opts = {}) {
     if (!t.alive || !this.isVulnerable(t)) return 0;
     let dmg = amount;
@@ -260,8 +290,16 @@ class Game {
       if (t.isStructure) dmg *= 0.6;
     }
     if (t.kind === 'minion' && this.baronNear(t)) dmg *= 0.5;
-    if (!opts.trueDmg) dmg = mitigate(dmg, t.armor);
+    if (opts.magic) {
+      let mr = t.mr || 0;
+      if (src && mr > 0) mr = Math.max(0, mr * (1 - (src.mpenPct || 0)) - (src.mpenFlat || 0));
+      dmg = mitigate(dmg, mr);
+    } else if (!opts.trueDmg) {
+      dmg = mitigate(dmg, t.armor);
+    }
     dmg = Math.max(0, dmg);
+    const dealt = dmg;
+    if (t.shields) dmg = t.absorbShield(dmg);
 
     t.hp -= dmg;
     t.hitFlash = 0.1;
@@ -273,8 +311,12 @@ class Game {
     if (t.kind === 'hero' && t.recall) t.cancelRecall();
 
     if (!opts.silent) {
-      if (src === this.player) this.floatText(t.x, t.y - t.radius - 10, Math.round(dmg) + (opts.crit ? '!' : ''), opts.crit ? '#ff9a2e' : '#ffffff', opts.crit ? 22 : 15);
-      else if (t === this.player) this.floatText(t.x, t.y - t.radius - 10, '-' + Math.round(dmg), '#ff5a5a', 15);
+      if (src === this.player) {
+        const color = opts.crit ? '#ff9a2e' : opts.magic ? '#c9a0ff' : '#ffffff';
+        this.floatText(t.x, t.y - t.radius - 10, Math.round(dealt) + (opts.crit ? '!' : ''), color, opts.crit ? 22 : opts.ability ? 18 : 15);
+      } else if (t === this.player) {
+        this.floatText(t.x, t.y - t.radius - 10, '-' + Math.round(dealt), '#ff5a5a', 15);
+      }
     }
 
     if (opts.isAttack && t.thorns && src && src.alive && !src.isStructure) {
@@ -282,7 +324,7 @@ class Game {
     }
 
     if (t.hp <= 0) { t.hp = 0; this.onDeath(t, src); }
-    return dmg;
+    return dealt;
   }
 
   onDeath(t, killer) {
@@ -296,6 +338,7 @@ class Game {
     }
     t.alive = false;
     t.windup = -1;
+    t.displace = null;
     if (t.isStructure) t.onDestroyed();
 
     const killerHero = killer && killer.kind === 'hero' ? killer : null;

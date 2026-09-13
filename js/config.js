@@ -38,7 +38,7 @@ const MAX_LEVEL = 18;
 
 // 기본 테스트 유닛 스탯 (나중에 챔피언 데이터로 교체 가능)
 const HERO_BASE = {
-  name: '기본 유닛',
+  id: 'basic', name: '기본 유닛', title: '테스트용 유닛', role: '스킬 없음', icon: '⚔', order: 99,
   hp: 620, hpPerLvl: 96,
   hpRegen: 1.6, hpRegenPerLvl: 0.12,
   ad: 58, adPerLvl: 3.2,
@@ -82,15 +82,15 @@ const MONSTER_STATS = {
   raptor:    { name: '칼날부리', hp: 350, ad: 13, as: 1.0, armor: 0, range: 300, radius: 22, gold: 10, xp: 20, ms: 350, color: '#e889ad' },
   bigKrug:   { name: '고대 돌거북', hp: 1350, ad: 60, as: 0.6, armor: 25, range: 150, radius: 50, gold: 70, xp: 110, ms: 285, color: '#9b7b56' },
   krug:      { name: '돌거북', hp: 550, ad: 25, as: 0.6, armor: 10, range: 150, radius: 30, gold: 20, xp: 30, ms: 285, color: '#b8966b' },
-  dragon:    { name: '화염 용', hp: 3800, ad: 110, as: 0.5, armor: 21, range: 500, radius: 80, gold: 150, xp: 400, ms: 330, projSpeed: 900, buff: 'dragon', color: '#ff7b2e' },
-  baron:     { name: '공허의 군주', hp: 9000, ad: 160, as: 0.75, armor: 70, range: 600, radius: 110, gold: 300, xp: 800, ms: 0, projSpeed: 1000, buff: 'baron', color: '#9a5cff' },
+  dragon:    { name: '화염 용', hp: 3800, ad: 110, as: 0.5, armor: 21, mr: 30, ccImmune: true, range: 500, radius: 80, gold: 150, xp: 400, ms: 330, projSpeed: 900, buff: 'dragon', color: '#ff7b2e' },
+  baron:     { name: '공허의 군주', hp: 9000, ad: 160, as: 0.75, armor: 70, mr: 70, ccImmune: true, range: 600, radius: 110, gold: 300, xp: 800, ms: 0, projSpeed: 1000, buff: 'baron', color: '#9a5cff' },
 };
 
 const BUFF_INFO = {
-  blue:   { name: '푸른 기운', dur: 120, desc: '체력 재생 +6/초, 이동 속도 +8%', color: '#4aa8ff', icon: '💧' },
+  blue:   { name: '푸른 기운', dur: 120, desc: '체력 재생 +6/초, 마나 재생 +5/초, 스킬 가속 +10, 이동 속도 +8%', color: '#4aa8ff', icon: '💧' },
   red:    { name: '붉은 기운', dur: 120, desc: '공격력 +15, 기본 공격에 추가 고정 피해', color: '#ff6a3a', icon: '🔥' },
-  dragon: { name: '용의 힘', dur: 0, desc: '공격력/방어력 영구 증가 (중첩)', color: '#ff7b2e', icon: '🐉' },
-  baron:  { name: '군주의 권능', dur: 180, desc: '공격력 +40, 귀환 4초, 주변 미니언 강화', color: '#9a5cff', icon: '👁' },
+  dragon: { name: '용의 힘', dur: 0, desc: '공격력/주문력/방어력 영구 증가 (중첩)', color: '#ff7b2e', icon: '🐉' },
+  baron:  { name: '군주의 권능', dur: 180, desc: '공격력 +40, 주문력 +40, 귀환 4초, 주변 미니언 강화', color: '#9a5cff', icon: '👁' },
 };
 
 const SPELLS = {

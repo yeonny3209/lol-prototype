@@ -132,6 +132,8 @@ const Renderer = {
     this.drawTrees(ctx, view);
     this.drawCampTimers(ctx, game, view);
     this.drawGroundFx(ctx, game);
+    for (const h of game.heroes) if (h.drawGround && (h.team === pl.team || game.isVisible(pl.team, h))) h.drawGround(ctx, this, game);
+    if (UI.hoverAbility && pl.alive && pl.drawAbilityRange) pl.drawAbilityRange(ctx, UI.hoverAbility, game);
 
     // 그릴 유닛 목록
     const list = this.drawList; list.length = 0;
@@ -146,6 +148,7 @@ const Renderer = {
 
     this.drawTurretRanges(ctx, game);
     for (const u of list) this.drawUnit(ctx, u, game);
+    for (const h of game.heroes) if (h.drawOver && (h.team === pl.team || game.isVisible(pl.team, h))) h.drawOver(ctx, this, game);
     this.drawProjectiles(ctx, game);
     this.drawFx(ctx, game);
     ctx.restore();
@@ -218,6 +221,8 @@ const Renderer = {
       ctx.lineWidth = 3;
       ctx.beginPath(); ctx.ellipse(u.x, u.y + (u.isStructure ? 0 : u.radius * 0.3), u.radius * 1.25, u.radius * 0.75, 0, 0, TAU); ctx.stroke();
     }
+    const air = u.displace ? u.airHeight() : 0;
+    if (air) { ctx.save(); ctx.translate(0, -air); }
     switch (u.kind) {
       case 'hero': this.drawHero(ctx, u, game); break;
       case 'minion': this.drawMinion(ctx, u); break;
@@ -230,6 +235,11 @@ const Renderer = {
     if (u.hitFlash > 0 && u.alive && !u.isStructure) {
       this.circle(ctx, u.x, u.y, u.radius, 'rgba(255,255,255,' + (u.hitFlash * 4).toFixed(2) + ')');
     }
+    if (u.shields && u.alive && u.shieldTotal() > 0) {
+      const pulse = 0.5 + 0.15 * Math.sin(game.time * 5);
+      this.circle(ctx, u.x, u.y, u.radius + 14, 'rgba(255,240,200,0.14)', 'rgba(255,235,170,' + pulse.toFixed(2) + ')', 3);
+    }
+    if (air) ctx.restore();
   },
 
   drawHero(ctx, u, game) {
@@ -245,6 +255,7 @@ const Renderer = {
       ctx.fillStyle = 'rgba(150,210,255,0.25)';
       ctx.fillRect(u.x - 30, u.y - 160 * k - 20, 60, 160 * k + 20);
     }
+    if (u.drawBody) { u.drawBody(ctx, this, game); return; }
     this.shadow(ctx, u);
     const col = TEAM_COLOR[u.team];
     this.circle(ctx, u.x, u.y, u.radius, col, '#e8c060', 4);
@@ -464,6 +475,23 @@ const Renderer = {
           ctx.strokeStyle = 'rgba(210,160,255,' + (1 - k) + ')'; ctx.lineWidth = 6;
           ctx.beginPath(); ctx.arc(x, y, 40 + k * 60, 0, TAU); ctx.stroke();
           break;
+        case 'pulse': {
+          const rr = e.r * (0.6 + 0.4 * k);
+          ctx.fillStyle = this.alphaColor(e.color, 0.25 * (1 - k));
+          ctx.beginPath(); ctx.arc(x, y, rr, 0, TAU); ctx.fill();
+          ctx.strokeStyle = this.alphaColor(e.color, 1 - k); ctx.lineWidth = 5;
+          ctx.stroke();
+          break;
+        }
+        case 'shockwave':
+          this.circle(ctx, x, y, e.r, 'rgba(90,160,255,' + (0.28 * (1 - k)).toFixed(3) + ')');
+          for (let i = 0; i < 3; i++) {
+            const kk = clamp(k * 1.4 - i * 0.2, 0, 1);
+            if (kk <= 0 || kk >= 1) continue;
+            ctx.strokeStyle = 'rgba(160,220,255,' + (1 - kk).toFixed(3) + ')'; ctx.lineWidth = 12 - i * 3;
+            ctx.beginPath(); ctx.arc(x, y, e.r * kk, 0, TAU); ctx.stroke();
+          }
+          break;
         case 'death':
           if (e.big) {
             for (let i = 0; i < 10; i++) {
@@ -526,9 +554,16 @@ const Renderer = {
       const x = sx - bw / 2;
       ctx.fillStyle = 'rgba(0,0,0,0.75)';
       ctx.fillRect(x - 2, by - 2, bw + 4, bh + 4);
-      const k = clamp(u.hp / u.maxHp, 0, 1);
+      const sh = u.shields ? u.shieldTotal() : 0;
+      const total = Math.max(u.maxHp, u.hp + sh);
+      const k = clamp(u.hp / total, 0, 1);
       ctx.fillStyle = col;
       ctx.fillRect(x, by, bw * k, bh);
+      if (sh > 0) { ctx.fillStyle = '#eeeeee'; ctx.fillRect(x + bw * k, by, bw * sh / total, bh); }
+      if (u.kind === 'hero' && u.maxMana > 0) {
+        ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(x - 2, by + bh + 2, bw + 4, 6);
+        ctx.fillStyle = '#4f8fff'; ctx.fillRect(x, by + bh + 3, bw * clamp(u.mana / u.maxMana, 0, 1), 4);
+      }
       if (u.kind === 'hero') {
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         for (let h = 100; h < u.maxHp; h += 100) {

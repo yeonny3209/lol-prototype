@@ -1,5 +1,6 @@
-// ===== HUD / 상점 / 화면 전환 =====
+// ===== HUD / 챔피언 선택 / 상점 / 화면 전환 =====
 const $ = id => document.getElementById(id);
+const ABILITY_KEYS = ['Q', 'W', 'E', 'R'];
 
 const UI = {
   game: null,
@@ -10,12 +11,22 @@ const UI = {
   fps: 60,
   lastLockedMsg: -99,
   cache: {},
+  selectedChamp: 'orianna',
+  hoverAbility: null,  // 마우스를 올린 스킬 (범위 표시용)
+  tipFn: null,
+  tipEl: null,
+  abilityEls: {},
+  lastHint: '',
+  lastHintT: 0,
 
   init() {
-    $('startBtn').onclick = () => { $('startScreen').classList.add('hidden'); startGame(); };
+    $('startBtn').onclick = () => startGame(this.selectedChamp);
     $('resumeBtn').onclick = () => this.setPaused(false);
-    $('restartBtn').onclick = () => startGame();
-    $('restartBtn2').onclick = () => startGame();
+    const restart = () => startGame(this.game ? this.game.champId : this.selectedChamp);
+    $('restartBtn').onclick = restart;
+    $('restartBtn2').onclick = restart;
+    $('menuBtn').onclick = () => showChampSelect();
+    $('menuBtn2').onclick = () => showChampSelect();
     $('shopBtn').onclick = () => this.toggleShop();
     $('recallBtn').onclick = () => this.game && this.game.player.startRecall();
     document.querySelectorAll('[data-close="shop"]').forEach(b => b.onclick = () => this.toggleShop(false));
@@ -32,17 +43,22 @@ const UI = {
       };
       items.appendChild(el);
     }
-    this.buildShop();
+    this.buildChampSelect();
   },
 
   attach(game) {
     this.game = game;
     this.cache = {};
     this.selItem = null; this.selSlot = null;
+    this.hideTip();
     document.querySelectorAll('.hud').forEach(e => e.classList.remove('hidden'));
+    $('startScreen').classList.add('hidden');
     $('endScreen').classList.add('hidden');
     $('pauseScreen').classList.add('hidden');
     $('announce').innerHTML = '';
+    $('portraitInner').textContent = game.player.base.icon || '⚔';
+    this.buildAbilities(game.player);
+    this.buildShop(game.player);
     this.toggleShop(false);
   },
 
@@ -64,11 +80,19 @@ const UI = {
     setTimeout(() => el.remove(), 3700);
   },
 
+  // 같은 안내가 연달아 쌓이지 않게
+  hint(text) {
+    const now = performance.now();
+    if (this.lastHint === text && now - this.lastHintT < 1500) return;
+    this.lastHint = text; this.lastHintT = now;
+    this.announce(text, 'bad');
+  },
+
   flashLocked(key) {
     if (!this.game) return;
     if (performance.now() - this.lastLockedMsg > 2000) {
       this.lastLockedMsg = performance.now();
-      this.announce('챔피언이 없어 ' + key + ' 스킬이 비어 있습니다', 'info');
+      this.announce(this.game.player.base.name + '은(는) ' + key + ' 스킬이 없습니다', 'info');
     }
   },
 
@@ -91,6 +115,7 @@ const UI = {
     t.className = win ? 'win' : 'lose';
     const p = game.player;
     $('endStats').innerHTML = [
+      ['챔피언', p.base.name],
       ['게임 시간', formatTime(game.time)],
       ['레벨', p.level],
       ['미니언 / 몬스터 처치', p.cs],
@@ -102,15 +127,104 @@ const UI = {
     this.toggleShop(false);
   },
 
+  // ---------- 챔피언 선택 ----------
+  buildChampSelect() {
+    const box = $('champSelect');
+    box.innerHTML = '';
+    const list = Object.entries(CHAMPIONS).sort((a, b) => (a[1].base.order || 99) - (b[1].base.order || 99));
+    for (const [id, c] of list) {
+      const el = document.createElement('div');
+      el.className = 'champCard' + (id === this.selectedChamp ? ' sel' : '');
+      el.innerHTML = '<div class="cIcon">' + c.base.icon + '</div><div class="cName">' + c.base.name + '</div>' +
+        '<div class="cTitle">' + (c.base.title || '') + '</div><div class="cRole">' + c.base.role + '</div>';
+      el.onclick = () => { this.selectedChamp = id; this.buildChampSelect(); };
+      el.ondblclick = () => { this.selectedChamp = id; startGame(id); };
+      box.appendChild(el);
+    }
+  },
+
+  // ---------- 스킬 칸 ----------
+  buildAbilities(p) {
+    const box = $('abilitySlots');
+    box.innerHTML = '';
+    this.abilityEls = {};
+    const defs = p.abilityDefs;
+    if (defs && defs.P) {
+      const el = document.createElement('div');
+      el.className = 'slot passive';
+      el.innerHTML = '<span class="icon">' + defs.P.icon + '</span>';
+      this.bindTip(el, () => this.passiveTip(p));
+      box.appendChild(el);
+    }
+    for (const key of ABILITY_KEYS) {
+      const def = defs && defs[key];
+      const wrap = document.createElement('div');
+      wrap.className = 'abilityWrap';
+      wrap.innerHTML = '<button class="lvlUp" title="스킬 레벨 올리기 (Shift+' + key + ')">+</button>' +
+        '<div class="slot ability' + (def ? '' : ' locked') + (key === 'R' ? ' big' : '') + '">' +
+        (def ? '<span class="icon">' + def.icon + '</span><span class="cost"></span><div class="cd"></div>' : '') +
+        '<span class="key">' + key + '</span></div><div class="pips"></div>';
+      box.appendChild(wrap);
+      if (!def) continue;
+      const pips = wrap.querySelector('.pips');
+      for (let i = 0; i < def.maxLvl; i++) pips.appendChild(document.createElement('i'));
+      const slot = wrap.querySelector('.slot');
+      const up = wrap.querySelector('.lvlUp');
+      up.onclick = () => { p.levelAbility(key); if (this.tipFn) this.showTip(); };
+      this.bindTip(slot, () => this.abilityTip(p, key), key);
+      this.abilityEls[key] = { slot, up, pips: [...pips.children], cd: slot.querySelector('.cd'), cost: slot.querySelector('.cost') };
+    }
+  },
+
+  bindTip(el, fn, abilityKey) {
+    el.addEventListener('mouseenter', () => { this.tipFn = fn; this.tipEl = el; this.hoverAbility = abilityKey || null; this.showTip(); });
+    el.addEventListener('mouseleave', () => this.hideTip());
+  },
+
+  showTip() {
+    const tip = $('tooltip');
+    tip.innerHTML = this.tipFn();
+    tip.classList.remove('hidden');
+    const r = this.tipEl.getBoundingClientRect();
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = clamp(r.left + r.width / 2 - tw / 2, 8, window.innerWidth - tw - 8) + 'px';
+    tip.style.top = Math.max(8, r.top - th - 36) + 'px';
+  },
+
+  hideTip() {
+    this.tipFn = null;
+    this.tipEl = null;
+    this.hoverAbility = null;
+    $('tooltip').classList.add('hidden');
+  },
+
+  abilityTip(p, key) {
+    const def = p.abilityDefs[key], a = p.abilities[key], lvl = Math.max(1, a.lvl);
+    const cd = p.abilityCd(key, lvl);
+    return '<div class="tipHead"><span class="tipName">' + def.name + '</span><span class="tipKey">' + key + '</span></div>' +
+      '<div class="tipMeta">' + (a.lvl ? '레벨 ' + a.lvl + ' / ' + def.maxLvl : '<span class="warn">배우지 않음 · Shift+' + key + '</span>') +
+      ' · 마나 ' + def.cost[lvl - 1] + ' · 재사용 ' + (+cd.toFixed(1)) + '초</div>' +
+      '<div class="tipBody">' + def.desc(p, lvl) + '</div>';
+  },
+
+  passiveTip(p) {
+    const def = p.abilityDefs.P;
+    return '<div class="tipHead"><span class="tipName">' + def.name + '</span><span class="tipKey">패시브</span></div>' +
+      '<div class="tipBody">' + def.desc(p) + '</div>';
+  },
+
   // ---------- 상점 ----------
-  buildShop() {
+  buildShop(p) {
     const list = $('shopList');
-    const cats = [...new Set(ITEMS.map(i => i.cat))];
     list.innerHTML = '';
-    for (const cat of cats) {
-      const h = document.createElement('h3'); h.textContent = cat; list.appendChild(h);
+    const sections = [];
+    const rec = (p.base.recommended || []).map(id => ITEM_BY_ID[id]).filter(Boolean);
+    if (rec.length) sections.push(['추천 아이템 · ' + p.base.name, rec]);
+    for (const cat of [...new Set(ITEMS.map(i => i.cat))]) sections.push([cat, ITEMS.filter(i => i.cat === cat)]);
+    for (const [title, items] of sections) {
+      const h = document.createElement('h3'); h.textContent = title; list.appendChild(h);
       const grid = document.createElement('div'); grid.className = 'grid';
-      for (const it of ITEMS.filter(i => i.cat === cat)) {
+      for (const it of items) {
         const el = document.createElement('div');
         el.className = 'shopItem';
         el.dataset.id = it.id;
@@ -182,15 +296,32 @@ const UI = {
     if (dt > 0) this.fps = lerp(this.fps, 1 / dt, 0.05);
     const p = game.player;
 
-    // 체력바 (매 프레임)
-    const hpK = clamp(p.hp / p.maxHp, 0, 1);
-    $('hpBar').querySelector('.fill').style.width = (hpK * 100).toFixed(1) + '%';
-    this.set('hpTxt', $('hpBar').querySelector('.txt'), 'text', Math.ceil(p.hp) + ' / ' + p.maxHp);
+    // 체력 / 보호막
+    const sh = p.shields ? p.shieldTotal() : 0;
+    const total = Math.max(p.maxHp, p.hp + sh);
+    const hpK = clamp(p.hp / total, 0, 1);
+    const hpBar = $('hpBar');
+    hpBar.querySelector('.fill').style.width = (hpK * 100).toFixed(1) + '%';
+    const shEl = hpBar.querySelector('.shield');
+    shEl.style.left = (hpK * 100).toFixed(1) + '%';
+    shEl.style.width = (sh / total * 100).toFixed(1) + '%';
+    this.set('hpTxt', hpBar.querySelector('.txt'), 'text', Math.ceil(p.hp) + (sh > 0 ? ' (+' + Math.ceil(sh) + ')' : '') + ' / ' + p.maxHp);
     if (this.cache.ticksFor !== p.maxHp) {
       this.cache.ticksFor = p.maxHp;
       let html = '';
       for (let h = 100; h < p.maxHp; h += 100) html += '<i style="left:' + (h / p.maxHp * 100).toFixed(2) + '%"></i>';
-      $('hpBar').querySelector('.ticks').innerHTML = html;
+      hpBar.querySelector('.ticks').innerHTML = html;
+    }
+
+    // 마나
+    const res = $('resBar');
+    res.classList.toggle('mana', p.maxMana > 0);
+    if (p.maxMana > 0) {
+      res.querySelector('.fill').style.width = (clamp(p.mana / p.maxMana, 0, 1) * 100).toFixed(1) + '%';
+      this.set('mpTxt', res.querySelector('.txt'), 'text', Math.floor(p.mana) + ' / ' + p.maxMana + '   (+' + p.manaRegen.toFixed(1) + '/초)');
+    } else {
+      res.querySelector('.fill').style.width = '100%';
+      this.set('mpTxt', res.querySelector('.txt'), 'text', '자원 없음');
     }
 
     // 귀환 바
@@ -213,10 +344,11 @@ const UI = {
     $('portrait').classList.toggle('dead', !p.alive);
 
     const stats = [
-      ['⚔', Math.round(p.ad), '공격력'], ['⚡', p.as.toFixed(2), '공격 속도'],
+      ['⚔', Math.round(p.ad), '공격력'], ['🔮', Math.round(p.ap), '주문력'],
       ['🛡', Math.round(p.armor), '방어력'], ['✨', Math.round(p.mr), '마법 저항력'],
-      ['👟', Math.round(p.ms), '이동 속도'], ['🎯', p.range, '사거리'],
-      ['💥', Math.round(p.crit * 100) + '%', '치명타 확률'], ['🩸', Math.round(p.lifesteal * 100) + '%', '생명력 흡수'],
+      ['⚡', p.as.toFixed(2), '공격 속도'], ['⏳', Math.round(p.ah), '스킬 가속'],
+      ['👟', Math.round(p.getMS()), '이동 속도'], ['🎯', p.range, '사거리'],
+      ['💥', Math.round(p.crit * 100) + '%', '치명타 확률'], ['🌀', Math.round(p.mpenFlat) + (p.mpenPct ? ' | ' + Math.round(p.mpenPct * 100) + '%' : ''), '마법 관통력'],
     ];
     this.set('stats', $('statsPanel'), 'html', stats.map(s => '<div class="st" title="' + s[2] + '"><i>' + s[0] + '</i>' + s[1] + '</div>').join(''));
 
@@ -224,6 +356,24 @@ const UI = {
       const cd = p.spellCd[key];
       this.set('cd' + key, $(id).querySelector('.cd'), 'text', cd > 0 ? Math.ceil(cd) : '');
     }
+
+    // 스킬 칸
+    if (p.abilityDefs) {
+      for (const key of ABILITY_KEYS) {
+        const el = this.abilityEls[key];
+        if (!el) continue;
+        const a = p.abilities[key], def = p.abilityDefs[key];
+        el.slot.classList.toggle('unlearned', a.lvl === 0);
+        el.slot.classList.toggle('nomana', a.lvl > 0 && a.cd <= 0 && p.mana < def.cost[a.lvl - 1]);
+        const cdTxt = a.cd > 0 ? (a.cd < 1 ? a.cd.toFixed(1) : String(Math.ceil(a.cd))) : '';
+        this.set('acd' + key, el.cd, 'text', cdTxt);
+        if (a.cd > 0) el.cd.style.background = 'conic-gradient(rgba(0,0,0,0.25) ' + ((1 - a.cd / a.maxCd) * 360).toFixed(0) + 'deg, rgba(0,0,0,0.72) 0)';
+        this.set('acost' + key, el.cost, 'text', a.lvl > 0 ? String(def.cost[a.lvl - 1]) : '');
+        el.pips.forEach((pip, i) => pip.classList.toggle('on', i < a.lvl));
+        el.up.classList.toggle('on', p.canLevelAbility(key));
+      }
+    }
+    if (this.tipFn) this.showTip();
 
     const itemEls = $('items').children;
     for (let i = 0; i < 6; i++) {
@@ -270,9 +420,11 @@ const UI = {
     if (u.isStructure && u.alive && !game.isVulnerable(u)) note = '🛡 ' + game.protectionReason(u);
     if (u.kind === 'inhibitor' && !u.alive) note = '재생성까지 ' + formatTime(u.respawnTimer);
     if (u.kind === 'monster' && u.resetting) note = '초기화 중 (피해 무효)';
+    if (u.slows && Object.keys(u.slows).length) note += (note ? ' · ' : '') + '둔화됨';
     const rows = [];
     if (u.ad) rows.push('⚔ ' + Math.round(u.kind === 'turret' ? TURRET_COMMON.ad + TURRET_COMMON.adPerMin * game.time / 60 : u.ad));
     rows.push('🛡 ' + Math.round(u.armor));
+    rows.push('✨ ' + Math.round(u.mr || 0));
     if (u.range) rows.push('🎯 ' + u.range);
     if (u.gold && u.team !== game.player.team) rows.push('● ' + u.gold + 'G');
     const lane = u.lane ? ' (' + LANE_NAMES[u.lane] + ')' : '';

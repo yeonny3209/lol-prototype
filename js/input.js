@@ -33,18 +33,20 @@ const Input = {
     });
     canvas.addEventListener('wheel', e => {
       e.preventDefault();
+      if (!this.game) return;
       const c = this.game.cam;
       c.zoom = clamp(c.zoom * (e.deltaY > 0 ? 0.9 : 1.1), 0.45, 1.6);
     }, { passive: false });
 
     mm.addEventListener('mousedown', e => {
       e.preventDefault();
+      if (!this.game) return;
       const p = this.minimapToWorld(e);
       if (e.button === 0) { this.minimapDrag = true; this.game.cam.locked = false; this.game.cam.x = p.x; this.game.cam.y = p.y; }
       else if (e.button === 2 && this.running()) { this.game.player.orderMove(p.x, p.y); }
     });
     mm.addEventListener('mousemove', e => {
-      if (!this.minimapDrag) return;
+      if (!this.minimapDrag || !this.game) return;
       const p = this.minimapToWorld(e);
       this.game.cam.x = p.x; this.game.cam.y = p.y;
     });
@@ -122,7 +124,13 @@ const Input = {
       case 'KeyY': g.cam.locked = !g.cam.locked; UI.announce('카메라 고정: ' + (g.cam.locked ? '켜짐' : '꺼짐'), 'info'); break;
       case 'KeyD': pl.castHeal(); break;
       case 'KeyF': pl.castFlash(w.x, w.y); break;
-      case 'KeyQ': case 'KeyW': case 'KeyE': case 'KeyR': UI.flashLocked(e.code.slice(3)); break;
+      case 'KeyQ': case 'KeyW': case 'KeyE': case 'KeyR': {
+        const key = e.code.slice(3);
+        if (!pl.abilityDefs) UI.flashLocked(key);
+        else if (e.shiftKey) pl.levelAbility(key);
+        else pl.castAbility(key, w.x, w.y, this.hover);
+        break;
+      }
       case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Digit5': case 'Digit6':
         pl.useItem(Number(e.code.slice(5)) - 1); break;
     }

@@ -37,16 +37,13 @@
   </div>
   <div id="centerPanel">
     <div id="abilityRow">
-      <div class="slot ability locked" data-key="Q"><span class="key">Q</span></div>
-      <div class="slot ability locked" data-key="W"><span class="key">W</span></div>
-      <div class="slot ability locked" data-key="E"><span class="key">E</span></div>
-      <div class="slot ability locked big" data-key="R"><span class="key">R</span></div>
+      <div id="abilitySlots"></div>
       <div class="spacer"></div>
       <div class="slot spell" id="spellD" title="회복 (D)"><span class="icon">✚</span><span class="key">D</span><div class="cd"></div></div>
       <div class="slot spell" id="spellF" title="점멸 (F)"><span class="icon">✦</span><span class="key">F</span><div class="cd"></div></div>
     </div>
-    <div class="bar" id="hpBar"><div class="fill"></div><div class="ticks"></div><span class="txt"></span></div>
-    <div class="bar" id="resBar"><div class="fill"></div><span class="txt">자원 없음 (챔피언 미구현)</span></div>
+    <div class="bar" id="hpBar"><div class="fill"></div><div class="shield"></div><div class="ticks"></div><span class="txt"></span></div>
+    <div class="bar" id="resBar"><div class="fill"></div><span class="txt"></span></div>
   </div>
   <div id="rightPanel">
     <div id="items"></div>
@@ -71,21 +68,25 @@
   <div id="shopDetail"></div>
 </div>
 
-<!-- 시작 화면 -->
+<div id="tooltip" class="hidden"></div>
+
+<!-- 시작 화면 (챔피언 선택) -->
 <div id="startScreen" class="screen">
   <div class="screenBox">
     <h1>LOL <small>프로토타입</small></h1>
-    <p class="sub">3라인 · 정글 · 포탑 · 억제기 · 넥서스 — 챔피언 없는 기본 게임</p>
-    <p>당신은 <b class="blueTxt">블루 팀</b>의 기본 유닛을 조종합니다. 미니언과 함께 라인을 밀어 <b class="redTxt">적 넥서스</b>를 파괴하세요.</p>
+    <p class="sub">3라인 · 정글 · 포탑 · 억제기 · 넥서스</p>
+    <h3 class="selTitle">챔피언 선택</h3>
+    <div id="champSelect"></div>
+    <p><b class="blueTxt">블루 팀</b>으로 플레이합니다. 미니언과 함께 라인을 밀어 <b class="redTxt">적 넥서스</b>를 파괴하세요.</p>
     <div class="controls">
       <div><kbd>우클릭</kbd> 이동 / 공격</div>
       <div><kbd>A</kbd> + <kbd>좌클릭</kbd> 공격 이동</div>
-      <div><kbd>S</kbd> 정지</div>
+      <div><kbd>Q</kbd><kbd>W</kbd><kbd>E</kbd><kbd>R</kbd> 스킬 (마우스 위치로 바로 시전)</div>
+      <div><kbd>Shift</kbd> + <kbd>Q</kbd>~<kbd>R</kbd> 스킬 레벨 올리기</div>
       <div><kbd>D</kbd> 회복 &nbsp; <kbd>F</kbd> 점멸</div>
       <div><kbd>B</kbd> 귀환 &nbsp; <kbd>P</kbd> 상점</div>
-      <div><kbd>1</kbd>~<kbd>6</kbd> 아이템 사용</div>
-      <div><kbd>Space</kbd> 카메라 중앙 &nbsp; <kbd>Y</kbd> 카메라 고정</div>
-      <div><kbd>휠</kbd> 확대/축소 &nbsp; <kbd>Esc</kbd> 일시정지</div>
+      <div><kbd>S</kbd> 정지 &nbsp; <kbd>1</kbd>~<kbd>6</kbd> 아이템</div>
+      <div><kbd>Space</kbd> 카메라 중앙 &nbsp; <kbd>Y</kbd> 고정</div>
     </div>
     <button id="startBtn" class="bigBtn">게임 시작</button>
   </div>
@@ -96,6 +97,7 @@
     <h1>일시정지</h1>
     <button id="resumeBtn" class="bigBtn">계속하기</button>
     <button id="restartBtn2" class="bigBtn ghost">처음부터</button>
+    <button id="menuBtn2" class="bigBtn ghost">챔피언 선택</button>
   </div>
 </div>
 
@@ -104,6 +106,7 @@
     <h1 id="endTitle">승리</h1>
     <div id="endStats"></div>
     <button id="restartBtn" class="bigBtn">다시 하기</button>
+    <button id="menuBtn" class="bigBtn ghost">챔피언 선택</button>
   </div>
 </div>
 
@@ -114,6 +117,7 @@
 <script src="js/entities.js"></script>
 <script src="js/structures.js"></script>
 <script src="js/hero.js"></script>
+<script src="js/champions/orianna.js"></script>
 <script src="js/game.js"></script>
 <script src="js/input.js"></script>
 <script src="js/render.js"></script>

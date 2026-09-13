@@ -1,4 +1,6 @@
-// ===== 플레이어 유닛 (챔피언 자리) =====
+// ===== 영웅 공통 기반 (챔피언은 이 클래스를 상속) =====
+const CHAMPIONS = {};   // id -> { base, create(game, team) }
+
 class Hero extends Unit {
   constructor(game, team, base = HERO_BASE) {
     const f = LAYOUT[team].fountain;
@@ -8,6 +10,7 @@ class Hero extends Unit {
       ms: base.ms, projSpeed: base.projSpeed, sight: base.sight, hpRegen: base.hpRegen, windup: base.windup,
     });
     this.base = base;
+    this.champId = base.id;
     this.level = 1;
     this.xp = 0;
     this.gold = CFG.START_GOLD;
@@ -24,9 +27,20 @@ class Hero extends Unit {
     this.recall = null;
     this.spellCd = { heal: 0, flash: 0 };
     this.crit = 0; this.critDmg = 0; this.lifesteal = 0; this.thorns = false;
+    this.ap = 0; this.ah = 0; this.mpenFlat = 0; this.mpenPct = 0;
+    this.maxMana = 0; this.mana = 0; this.manaRegen = 0;
+    this.resistBonus = 0;         // 외부에서 받는 방어력/마법 저항력 (예: 오리아나 E)
     this.aggroOnHeroTime = -99;
+
+    // 스킬: 챔피언 클래스가 abilityDefs 를 채우면 활성화
+    this.abilityDefs = null;
+    this.abilities = {};
+    for (const k of ['Q', 'W', 'E', 'R']) this.abilities[k] = { lvl: 0, cd: 0, maxCd: 0 };
+    this.skillPoints = 1;
+
     this.recalcStats();
     this.hp = this.maxHp;
+    this.mana = this.maxMana;
   }
 
   recalcStats() {
@@ -45,13 +59,23 @@ class Hero extends Unit {
     if (oldMax && this.maxHp > oldMax && this.alive) this.hp += this.maxHp - oldMax;
     this.hp = Math.min(this.hp, this.maxHp);
 
+    const oldMana = this.maxMana;
+    this.maxMana = b.mana ? Math.round(b.mana + (b.manaPerLvl || 0) * L + (bonus.mana || 0)) : 0;
+    if (oldMana && this.maxMana > oldMana && this.alive) this.mana += this.maxMana - oldMana;
+    this.mana = Math.min(this.mana, this.maxMana);
+    this.manaRegen = b.mana ? (b.manaRegen || 0) + (b.manaRegenPerLvl || 0) * L + (bonus.manaRegen || 0) + (buff('blue') ? 5 : 0) : 0;
+
     this.baseAd = b.ad + b.adPerLvl * L;
-    let bonusAd = (bonus.ad || 0) + (buff('red') ? 15 : 0) + (buff('baron') ? 40 : 0);
+    const bonusAd = (bonus.ad || 0) + (buff('red') ? 15 : 0) + (buff('baron') ? 40 : 0);
     this.ad = (this.baseAd + bonusAd) * (1 + dragon * 0.06);
     this.bonusAd = this.ad - this.baseAd;
+    this.ap = ((bonus.ap || 0) + (buff('baron') ? 40 : 0)) * (1 + (bonus.apPct || 0)) * (1 + dragon * 0.06);
+    this.ah = (bonus.ah || 0) + (buff('blue') ? 10 : 0);
+    this.mpenFlat = bonus.mpen || 0;
+    this.mpenPct = Math.min(0.8, bonus.mpenPct || 0);
     this.as = Math.min(2.5, b.as * (1 + b.asPerLvl * L + (bonus.asPct || 0)));
-    this.armor = (b.armor + b.armorPerLvl * L + (bonus.armor || 0)) * (1 + dragon * 0.04);
-    this.mr = b.mr + b.mrPerLvl * L + (bonus.mr || 0);
+    this.armor = (b.armor + b.armorPerLvl * L + (bonus.armor || 0)) * (1 + dragon * 0.04) + this.resistBonus;
+    this.mr = b.mr + b.mrPerLvl * L + (bonus.mr || 0) + this.resistBonus;
     this.ms = (b.ms + (bonus.ms || 0)) * (1 + (bonus.msPct || 0) + (buff('blue') ? 0.08 : 0) + (buff('haste') ? 0.3 : 0));
     this.hpRegen = b.hpRegen + b.hpRegenPerLvl * L + (bonus.regen || 0) + (buff('blue') ? 6 : 0);
     this.crit = Math.min(1, bonus.crit || 0);
@@ -71,6 +95,50 @@ class Hero extends Unit {
     }
     this.recalcStats();
   }
+
+  // ---------- 스킬 (챔피언 공통) ----------
+  canLevelAbility(key) {
+    const defs = this.abilityDefs;
+    if (!defs || !defs[key] || this.skillPoints <= 0) return false;
+    const a = this.abilities[key];
+    if (a.lvl >= defs[key].maxLvl) return false;
+    if (key === 'R') return a.lvl < (this.level >= 16 ? 3 : this.level >= 11 ? 2 : this.level >= 6 ? 1 : 0);
+    return a.lvl < Math.ceil(this.level / 2);
+  }
+
+  levelAbility(key) {
+    if (!this.canLevelAbility(key)) return false;
+    this.abilities[key].lvl++;
+    this.skillPoints--;
+    this.onAbilityLeveled(key);
+    return true;
+  }
+
+  abilityCd(key, lvl) {
+    return this.abilityDefs[key].cd[lvl - 1] * 100 / (100 + this.ah);
+  }
+
+  castAbility(key, wx, wy, hover) {
+    const defs = this.abilityDefs;
+    if (!defs || !defs[key] || !this.alive) return false;
+    const a = this.abilities[key], def = defs[key];
+    if (a.lvl <= 0) { this.hint(def.name + ': 아직 배우지 않았습니다 (Shift+' + key + ')'); return false; }
+    if (a.cd > 0) return false;
+    const cost = def.cost[a.lvl - 1];
+    if (this.mana < cost) { this.hint('마나가 부족합니다'); return false; }
+    if (!this['cast' + key](a.lvl, wx, wy, hover)) return false;
+    this.mana -= cost;
+    a.cd = a.maxCd = this.abilityCd(key, a.lvl);
+    this.cancelRecall();
+    return true;
+  }
+
+  hint(text) { if (this === this.game.player) UI.hint(text); }
+
+  // 챔피언별 훅
+  championTick(dt) {}
+  onAbilityLeveled(key) {}
+  onDeathHook() {}
 
   // ---------- 명령 ----------
   orderMove(x, y) {
@@ -154,7 +222,7 @@ class Hero extends Unit {
     const s = this.items[idx];
     if (!s || !this.alive) return;
     if (s.id === 'potion') {
-      if (this.hots.length >= 1 && this.hots.some(h => h.src === 'potion')) return;
+      if (this.hots.some(h => h.src === 'potion')) return;
       this.hots.push({ src: 'potion', perSec: 10, t: 15 });
       s.count--;
       if (s.count <= 0) this.items[idx] = null;
@@ -166,14 +234,15 @@ class Hero extends Unit {
   gainXp(amount) {
     if (this.level >= MAX_LEVEL) return;
     this.xp += amount;
-    let leveled = false;
+    let gained = 0;
     while (this.level < MAX_LEVEL && this.xp >= xpToNext(this.level)) {
       this.xp -= xpToNext(this.level);
       this.level++;
-      leveled = true;
+      gained++;
     }
     if (this.level >= MAX_LEVEL) this.xp = 0;
-    if (leveled) {
+    if (gained) {
+      if (this.abilityDefs) this.skillPoints += gained;
       this.recalcStats();
       this.game.floatText(this.x, this.y - 70, '레벨 업!', '#e2c2ff', 22);
       this.game.addEffect({ type: 'levelup', x: this.x, y: this.y, dur: 0.8, follow: this });
@@ -187,11 +256,13 @@ class Hero extends Unit {
   }
 
   die() {
+    this.onDeathHook();
     this.alive = false;
     this.deaths++;
     this.respawnTimer = 6 + this.level * 2.2 + this.game.time / 60 * 0.4;
     this.cmd = null; this.path = []; this.recall = null; this.windup = -1;
     this.hots = [];
+    this.shields = null; this.slows = null; this.hastes = null; this.displace = null;
     for (const id of ['red', 'blue', 'baron', 'haste']) delete this.buffs[id];
     this.recalcStats();
   }
@@ -202,8 +273,9 @@ class Hero extends Unit {
     this.x = f.x + 150; this.y = f.y - 150;
     if (this.team === TEAM.RED) { this.x = f.x - 150; this.y = f.y + 150; }
     this.hp = this.maxHp;
+    this.mana = this.maxMana;
     this.attackCd = 0;
-    this.game.announce('부활했습니다', 'good');
+    if (this === this.game.player) this.game.announce('부활했습니다', 'good');
   }
 
   // ---------- 공격 ----------
@@ -253,6 +325,7 @@ class Hero extends Unit {
 
   update(dt) {
     this.moving = false;
+    this.championTick(dt);
     if (!this.alive) {
       this.respawnTimer -= dt;
       if (this.respawnTimer <= 0) this.respawn();
@@ -267,9 +340,11 @@ class Hero extends Unit {
     }
     if (changed) this.recalcStats();
     for (const k in this.spellCd) this.spellCd[k] = Math.max(0, this.spellCd[k] - dt);
+    for (const k in this.abilities) { const a = this.abilities[k]; if (a.cd > 0) a.cd = Math.max(0, a.cd - dt); }
     for (const h of this.hots) { this.hp = Math.min(this.maxHp, this.hp + h.perSec * dt); h.t -= dt; }
     this.hots = this.hots.filter(h => h.t > 0);
     this.regen(dt);
+    if (this.maxMana > 0) this.mana = Math.min(this.maxMana, this.mana + this.manaRegen * dt);
     this.tickCombat(dt);
 
     if (this.recall) {
@@ -301,7 +376,7 @@ class Hero extends Unit {
     }
 
     if (c.type === 'attack' || c.type === 'amove') {
-      let t = c.type === 'attack' ? c.target : c.target;
+      let t = c.target;
       if (c.type === 'amove') {
         if (!t || !this.isValidTarget(t) || this.edgeDist(t) > this.range + 250) {
           t = c.target = this.autoAcquire(this.range + 150);
@@ -313,7 +388,7 @@ class Hero extends Unit {
           return;
         }
       }
-      if (!this.isValidTarget(t) && !(t && t.alive && t.team === TEAM.NEUTRAL && this.game.isVisible(this.team, t))) {
+      if (!this.isValidTarget(t)) {
         if (c.type === 'attack') { this.cmd = null; return; }
         c.target = null;
         return;
@@ -332,3 +407,5 @@ class Hero extends Unit {
     return super.isValidTarget(t);
   }
 }
+
+CHAMPIONS.basic = { base: HERO_BASE, create: (game, team) => new Hero(game, team, HERO_BASE) };

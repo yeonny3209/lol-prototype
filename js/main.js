@@ -1,13 +1,26 @@
 // ===== 시작 / 메인 루프 =====
 let game = null;
 
-function startGame() {
-  game = new Game();
+function startGame(champId) {
+  game = new Game(champId);
   window.game = game;
   game.cam.zoom = clamp(window.innerHeight / 1150, 0.6, 1.2);
   Input.attach(game);
   UI.attach(game);
   Renderer.attach(game);
+}
+
+function showChampSelect() {
+  game = null;
+  window.game = null;
+  Input.game = null;
+  UI.toggleShop(false);
+  UI.hideTip();
+  UI.game = null;
+  document.querySelectorAll('.hud').forEach(e => e.classList.add('hidden'));
+  for (const id of ['endScreen', 'pauseScreen', 'deathOverlay', 'channelBar']) document.getElementById(id).classList.add('hidden');
+  UI.buildChampSelect();
+  document.getElementById('startScreen').classList.remove('hidden');
 }
 
 function boot() {
@@ -38,3 +51,7 @@ function boot() {
 }
 
 window.addEventListener('load', boot);
+// 게임 중 실수로 탭을 닫지 않도록 (예: Ctrl+W)
+window.addEventListener('beforeunload', e => {
+  if (game && !game.over) { e.preventDefault(); e.returnValue = ''; }
+});

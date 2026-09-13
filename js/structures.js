@@ -17,7 +17,7 @@ class Turret extends Structure {
     const s = TURRET_STATS[tier], c = TURRET_COMMON;
     super(game, {
       kind: 'turret', name: s.name, team, x: pos.x, y: pos.y, radius: c.radius,
-      hp: s.hp, armor: s.armor, ad: c.ad, as: c.as, range: c.range, projSpeed: c.projSpeed, sight: c.sight, windup: 0.15,
+      hp: s.hp, armor: s.armor, mr: s.armor, ad: c.ad, as: c.as, range: c.range, projSpeed: c.projSpeed, sight: c.sight, windup: 0.15,
     });
     this.lane = lane;
     this.tier = tier;
@@ -73,7 +73,7 @@ class Turret extends Structure {
 class Inhibitor extends Structure {
   constructor(game, team, lane, pos) {
     const s = INHIB_STATS;
-    super(game, { kind: 'inhibitor', name: s.name, team, x: pos.x, y: pos.y, radius: s.radius, hp: s.hp, armor: s.armor, sight: s.sight });
+    super(game, { kind: 'inhibitor', name: s.name, team, x: pos.x, y: pos.y, radius: s.radius, hp: s.hp, armor: s.armor, mr: s.armor, sight: s.sight });
     this.lane = lane;
     this.respawnTimer = 0;
     this.blocks = false;
@@ -96,7 +96,7 @@ class Inhibitor extends Structure {
 class Nexus extends Structure {
   constructor(game, team, pos) {
     const s = NEXUS_STATS;
-    super(game, { kind: 'nexus', name: s.name, team, x: pos.x, y: pos.y, radius: s.radius, hp: s.hp, armor: s.armor, sight: s.sight, hpRegen: s.regen });
+    super(game, { kind: 'nexus', name: s.name, team, x: pos.x, y: pos.y, radius: s.radius, hp: s.hp, armor: s.armor, mr: s.armor, sight: s.sight, hpRegen: s.regen });
   }
   update(dt) {
     if (this.alive && this.game.time - this.lastDamagedTime > 8) this.regen(dt);
@@ -120,6 +120,7 @@ class Fountain extends Structure {
       if (u.team === this.team) {
         if (d < CFG.FOUNTAIN_RADIUS && u.kind === 'hero') {
           u.hp = Math.min(u.maxHp, u.hp + u.maxHp * 0.12 * dt);
+          if (u.maxMana) u.mana = Math.min(u.maxMana, u.mana + u.maxMana * 0.12 * dt);
         }
       } else if (u.team !== TEAM.NEUTRAL && d < this.laserRange) {
         this.laserTargets.push(u);

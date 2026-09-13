@@ -32,6 +32,73 @@ class Unit {
     this.lastAggroTime = -99;   // 마지막으로 누군가를 공격한 시간
     this.lastDamagedTime = -99;
     this.lastDamagedBy = null;
+    this.ccImmune = !!o.ccImmune;
+    this.slows = null;       // id -> { pct, t, dur, decay }
+    this.hastes = null;
+    this.shields = null;     // id -> { amt, t }
+    this.displace = null;    // 에어본 / 끌어당김
+  }
+
+  // ---------- 상태 효과 (둔화 / 가속 / 보호막 / 에어본) ----------
+  addSlow(id, pct, dur, decay) { (this.slows || (this.slows = {}))[id] = { pct, t: dur, dur, decay }; }
+  addHaste(id, pct, dur, decay) { (this.hastes || (this.hastes = {}))[id] = { pct, t: dur, dur, decay }; }
+  addShield(id, amt, dur) { (this.shields || (this.shields = {}))[id] = { amt, t: dur }; }
+
+  shieldTotal() {
+    let s = 0;
+    if (this.shields) for (const k in this.shields) s += this.shields[k].amt;
+    return s;
+  }
+
+  absorbShield(dmg) {
+    for (const k in this.shields) {
+      const s = this.shields[k], take = Math.min(s.amt, dmg);
+      s.amt -= take; dmg -= take;
+      if (s.amt <= 0) delete this.shields[k];
+      if (dmg <= 0) break;
+    }
+    return dmg;
+  }
+
+  static effPct(e) { return e.decay ? e.pct * (e.t / e.dur) : e.pct; }
+
+  getMS() {
+    let slow = 0, haste = 0;
+    if (this.slows) for (const k in this.slows) slow = Math.max(slow, Unit.effPct(this.slows[k]));
+    if (this.hastes) for (const k in this.hastes) haste = Math.max(haste, Unit.effPct(this.hastes[k]));
+    return this.ms * (1 + haste) * (1 - slow);
+  }
+
+  tickStatus(dt) {
+    for (const bag of [this.slows, this.hastes, this.shields]) {
+      if (!bag) continue;
+      for (const k in bag) { bag[k].t -= dt; if (bag[k].t <= 0) delete bag[k]; }
+    }
+  }
+
+  knockTo(tx, ty, dur, height) {
+    if (this.isStructure || this.ccImmune || !this.alive) return false;
+    const p = Nav.isWalkable(tx, ty) ? P(tx, ty) : Nav.nearestWalkablePoint(tx, ty);
+    this.displace = { sx: this.x, sy: this.y, tx: p.x, ty: p.y, t: 0, dur, h: height };
+    this.cancelWindup();
+    return true;
+  }
+
+  // 에어본 중이면 true (행동 불가)
+  updateCC(dt) {
+    const d = this.displace;
+    if (!d) return false;
+    d.t += dt;
+    const k = Math.min(1, d.t / d.dur), e = 1 - (1 - k) * (1 - k);
+    this.x = lerp(d.sx, d.tx, e);
+    this.y = lerp(d.sy, d.ty, e);
+    if (k >= 1) this.displace = null;
+    return true;
+  }
+
+  airHeight() {
+    const d = this.displace;
+    return d ? Math.sin(Math.min(1, d.t / d.dur) * Math.PI) * d.h : 0;
   }
 
   getAS() { return this.as; }
@@ -102,7 +169,7 @@ class Unit {
   }
 
   // 이동: 구조물 주변은 미끄러지듯 돌아가고, 벽은 축별로 미끄러짐
-  moveToward(tx, ty, dt, speed = this.ms) {
+  moveToward(tx, ty, dt, speed = this.getMS()) {
     const dx = tx - this.x, dy = ty - this.y;
     const d = Math.sqrt(dx * dx + dy * dy);
     if (d < 1) return true;
@@ -257,7 +324,8 @@ class Monster extends Unit {
     const s = MONSTER_STATS[mtype];
     super(game, {
       kind: 'monster', name: s.name, team: TEAM.NEUTRAL, x, y, radius: s.radius,
-      hp: s.hp, ad: s.ad, as: s.as, armor: s.armor, range: s.range, ms: s.ms, projSpeed: s.projSpeed || 0, sight: 600, windup: 0.35,
+      hp: s.hp, ad: s.ad, as: s.as, armor: s.armor, mr: s.mr || 0, ccImmune: !!s.ccImmune,
+      range: s.range, ms: s.ms, projSpeed: s.projSpeed || 0, sight: 600, windup: 0.35,
     });
     this.mtype = mtype;
     this.stats = s;
