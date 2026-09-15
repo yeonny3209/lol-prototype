@@ -68,7 +68,9 @@ const TURRET_STATS = {
   inhib: { name: '억제기 포탑', hp: 3000, armor: 35 },
   nexus: { name: '넥서스 포탑', hp: 2600, armor: 35 },
 };
-const TURRET_COMMON = { ad: 160, adPerMin: 5, as: 0.83, range: 775, radius: 70, sight: 1150, projSpeed: 1300, rampPerHit: 0.4, rampMax: 1.2, gold: 250, xp: 150 };
+// range: 실제 롤 포탑 사거리는 775지만, 이 맵은 실제 소환사의 협곡보다 라인 간격이 좁게(약 0.7배) 그려져 있어
+// 775를 그대로 쓰면 포탑 사거리가 라인 길이에 비해 지나치게 넓어 보입니다. 맵 간격 비율에 맞춰 550으로 줄였습니다.
+const TURRET_COMMON = { ad: 160, adPerMin: 5, as: 0.83, range: 550, radius: 70, sight: 1150, projSpeed: 1300, rampPerHit: 0.4, rampMax: 1.2, gold: 250, xp: 150 };
 
 const INHIB_STATS = { name: '억제기', hp: 3000, armor: 20, radius: 80, sight: 700 };
 const NEXUS_STATS = { name: '넥서스', hp: 5000, armor: 20, radius: 125, sight: 1200, regen: 5 };
