@@ -11,11 +11,12 @@
 
 <!-- 상단: 시간 / 점수 -->
 <div id="topbar" class="hud hidden">
-  <div class="team blue"><span class="lbl">파괴한 포탑</span><span id="blueTowers">0</span></div>
+  <div class="team blue"><span class="lbl" id="blueLbl">블루</span><span class="kills" id="blueKills" title="처치">0</span><span class="tw" title="파괴한 포탑">🏰 <b id="blueTowers">0</b></span></div>
   <div id="timer">00:00</div>
-  <div class="team red"><span id="redTowers">0</span><span class="lbl">잃은 포탑</span></div>
+  <div class="team red"><span class="tw" title="파괴한 포탑">🏰 <b id="redTowers">0</b></span><span class="kills" id="redKills" title="처치">0</span><span class="lbl" id="redLbl">레드</span></div>
 </div>
 <div id="topright" class="hud hidden">
+  <span id="netText" class="hidden"></span>
   <span id="csText">CS 0</span>
   <span id="fpsText">60 FPS</span>
 </div>
@@ -88,7 +89,28 @@
   <div class="setupBox">
     <div class="setupHead">
       <h1>LOL <small>프로토타입</small></h1>
+      <div id="modeTabs">
+        <button class="roleBtn sel" data-mode="solo">혼자 연습</button>
+        <button class="roleBtn" data-mode="pvp">1대1 온라인</button>
+      </div>
       <span class="patchTag">아이템·룬 데이터: 패치 <b id="patchVer"></b></span>
+    </div>
+    <div id="lobbyPanel" class="hidden">
+      <div id="lobbyIdle">
+        <button id="hostBtn" class="smallBtn primary">방 만들기</button>
+        <span class="or">또는</span>
+        <input id="joinCode" type="text" maxlength="5" placeholder="방 코드 5자리" autocomplete="off" spellcheck="false">
+        <button id="joinBtn" class="smallBtn">참가</button>
+        <span class="lobbyNote">서버 없이 P2P로 연결됩니다 · 방장은 블루 팀, 참가자는 레드 팀</span>
+      </div>
+      <div id="lobbyRoom" class="hidden">
+        <span class="lbl">방 코드</span><b id="roomCode">-</b><button id="copyCodeBtn" class="smallBtn">복사</button>
+        <span id="lobbyStatus"></span>
+        <span id="lobbyTeam"></span>
+        <span id="remoteInfo"></span>
+        <button id="leaveBtn" class="smallBtn">나가기</button>
+      </div>
+      <div id="lobbyError"></div>
     </div>
     <div class="setupGrid">
       <section class="setupCol">
@@ -113,7 +135,7 @@
         <button class="roleBtn" data-scheme="wasd">WASD</button>
         <label id="angleWrap" class="hidden"><input type="checkbox" id="angleChk"> 45도 방향 보정</label>
       </div>
-      <label class="practice"><input type="checkbox" id="practiceChk" checked> 연습 규칙: '챔피언 대상' 효과를 미니언·몬스터에게도 적용 (적 챔피언이 아직 없음)</label>
+      <label class="practice" id="practiceWrap"><input type="checkbox" id="practiceChk" checked> 연습 규칙: '챔피언 대상' 효과를 미니언·몬스터에게도 적용 (적 챔피언이 아직 없음)</label>
       <button id="controlsBtn" class="smallBtn">조작법</button>
       <button id="startBtn" class="bigBtn">게임 시작</button>
     </div>
@@ -144,7 +166,8 @@
 
 <div id="pauseScreen" class="screen hidden">
   <div class="screenBox">
-    <h1>일시정지</h1>
+    <h1 id="pauseTitle">일시정지</h1>
+    <p id="pauseNote" class="hidden">1대1 중에는 게임이 멈추지 않고 계속 진행됩니다.</p>
     <button id="resumeBtn" class="bigBtn">계속하기</button>
     <button id="ctrlToggleBtn" class="bigBtn ghost">조작 방식</button>
     <button id="restartBtn2" class="bigBtn ghost">처음부터</button>
@@ -179,6 +202,8 @@
 <script src="js/champions/orianna.js"></script>
 <script src="js/champions/leesin.js"></script>
 <script src="js/game.js"></script>
+<script src="js/vendor/peerjs.min.js"></script>
+<script src="js/net.js"></script>
 <script src="js/input.js"></script>
 <script src="js/render.js"></script>
 <script src="js/ui.js"></script>

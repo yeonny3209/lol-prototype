@@ -154,6 +154,11 @@ const MapData = {
   },
 };
 
+// 16방향 단위 벡터 (0°부터 22.5°씩). 삼각함수 대신 고정값을 써서 브라우저가 달라도 같은 결과
+const C225 = 0.9238795325112867, S225 = 0.3826834323650898, H45 = 0.7071067811865476;
+const DIR16 = [[1, 0], [C225, S225], [H45, H45], [S225, C225], [0, 1], [-S225, C225], [-H45, H45], [-C225, S225],
+  [-1, 0], [-C225, -S225], [-H45, -H45], [-S225, -C225], [0, -1], [S225, -C225], [H45, -H45], [C225, -S225]];
+
 // ---------- 충돌 / 길찾기 격자 ----------
 const Nav = {
   cw: 0, ch: 0, coll: null,
@@ -229,7 +234,7 @@ const Nav = {
     for (let r = 1; r < 40; r++) {
       let best = null, bd = Infinity;
       for (let a = 0; a < 16; a++) {
-        const px = x + Math.cos(a / 16 * Math.PI * 2) * r * C, py = y + Math.sin(a / 16 * Math.PI * 2) * r * C;
+        const px = x + DIR16[a][0] * r * C, py = y + DIR16[a][1] * r * C;
         if (!this.isWalkable(px, py)) continue;
         const d = dist2(px, py, x, y);
         if (d < bd) { bd = d; best = P(px, py); }

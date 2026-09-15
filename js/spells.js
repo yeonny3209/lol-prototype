@@ -180,8 +180,8 @@ const Spells = {
     const unleashed = h.game.time >= 600;
     h.startChannel('순간이동', 3, () => {
       if (!target.alive && target.kind !== 'turret') { slot.cd = 60; return; }
-      const a = Math.random() * Math.PI * 2;
-      const p = Nav.nearestWalkablePoint(target.x + Math.cos(a) * (target.radius + 60), target.y + Math.sin(a) * (target.radius + 60));
+      const dir = DIR16[Math.floor(rng() * 16)];
+      const p = Nav.nearestWalkablePoint(target.x + dir[0] * ((target.radius || 20) + 60), target.y + dir[1] * ((target.radius || 20) + 60));
       h.game.addEffect({ type: 'flash', x: h.x, y: h.y, dur: 0.5 });
       h.x = p.x; h.y = p.y;
       h.game.addEffect({ type: 'flash', x: h.x, y: h.y, dur: 0.5 });
@@ -191,6 +191,18 @@ const Spells = {
       this.afterCast(h, slot);
     }, () => { slot.cd = Math.max(slot.cd, 20); });
     h.channel.target = target;
+    return true;
+  },
+
+  // 봉인 풀린 주문서 룬: 전투 밖에서 소환사 주문 교체
+  swapBook(h, i, key) {
+    const g = h.game;
+    if (!h.effectMap.has('r:8360') || g.time < 360 || h.inCombat()) return false;
+    const sb = h.spellbook || (h.spellbook = { cd: 0, used: [] });
+    if (g.time < sb.cd || !SPELL_DEFS[key] || !h.spells[i] || h.spells.some(s => s.key === key)) return false;
+    if (!sb.used.includes(key)) sb.used.push(key);
+    h.spells[i] = { key, cd: 0, charges: key === 'SummonerSmite' ? 1 : null, recharge: key === 'SummonerSmite' ? 90 : 0 };
+    sb.cd = g.time + Math.max(60, 300 - 25 * sb.used.length);
     return true;
   },
 

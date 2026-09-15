@@ -33,17 +33,44 @@ const UI = {
   lastHintT: 0,
   setup: null,
   spellSlotSel: 0,
+  mode: 'solo',        // 'solo' 혼자 연습 / 'pvp' 1대1 온라인
+  pauseOpen: false,
 
   init() {
-    $('startBtn').onclick = () => startGame(this.currentSetup());
+    $('startBtn').onclick = () => this.onStartClick();
     $('resumeBtn').onclick = () => this.setPaused(false);
-    const restart = () => startGame(this.game ? this.game.setup : this.currentSetup());
+    const restart = () => {
+      if (this.game && this.game.mode === 'pvp') return this.exitMatch();
+      startGame(this.game ? this.game.setup : this.currentSetup());
+    };
     $('restartBtn').onclick = restart;
     $('restartBtn2').onclick = restart;
-    $('menuBtn').onclick = () => showChampSelect();
-    $('menuBtn2').onclick = () => showChampSelect();
+    $('menuBtn').onclick = () => this.exitMatch();
+    $('menuBtn2').onclick = () => {
+      if (this.game && this.game.mode === 'pvp' && !this.game.over && Net.connected() && !confirm('지금 나가면 연결이 끊기고 패배로 처리됩니다. 나갈까요?')) return;
+      this.exitMatch();
+    };
     $('shopBtn').onclick = () => this.toggleShop();
-    $('recallBtn').onclick = () => this.game && this.game.player.startRecall();
+    $('recallBtn').onclick = () => Cmd.send({ k: 'recall' });
+
+    // 1대1 온라인 로비
+    document.querySelectorAll('#modeTabs [data-mode]').forEach(b => b.onclick = () => {
+      if (b.dataset.mode === this.mode) return;
+      if (this.mode === 'pvp' && Net.status !== 'idle') Net.leave();
+      this.mode = b.dataset.mode;
+      this.renderLobby();
+    });
+    $('hostBtn').onclick = () => Net.host();
+    $('joinBtn').onclick = () => Net.join($('joinCode').value);
+    $('joinCode').onkeydown = e => { if (e.key === 'Enter') Net.join($('joinCode').value); };
+    $('copyCodeBtn').onclick = () => {
+      if (!navigator.clipboard) return;
+      navigator.clipboard.writeText(Net.code).then(() => {
+        $('copyCodeBtn').textContent = '복사됨';
+        setTimeout(() => { $('copyCodeBtn').textContent = '복사'; }, 1500);
+      }, () => {});
+    };
+    $('leaveBtn').onclick = () => Net.leave();
     document.querySelectorAll('[data-close="shop"]').forEach(b => b.onclick = () => this.toggleShop(false));
     document.querySelectorAll('[data-close="spellbook"]').forEach(b => b.onclick = () => this.toggleSpellbook(false));
     $('controlsBtn').onclick = () => $('controlsBox').classList.toggle('hidden');
@@ -106,6 +133,7 @@ const UI = {
 
   renderSetup() {
     this.renderControls();
+    this.renderLobby();
     $('practiceChk').checked = this.setup.practice !== false;
     this.renderChampSelect();
     this.renderRoles();
@@ -142,6 +170,7 @@ const UI = {
     let warn = '';
     if (this.setup.role === 'jungle' && !this.setup.spells.includes('SummonerSmite')) warn = '<div class="warn">정글 동료 아이템을 사려면 강타가 필요합니다.</div>';
     $('roleInfo').innerHTML = '<div><b>진행:</b> ' + q.goal + '</div><div><b>보상:</b> ' + q.reward + '</div>' + warn;
+    this.onSetupChanged();
   },
 
   renderSpellPick() {
@@ -173,6 +202,7 @@ const UI = {
       this.bindTip(el, () => this.spellTip(key, null));
       grid.appendChild(el);
     }
+    this.onSetupChanged();
   },
 
   renderRunes() {
@@ -251,6 +281,72 @@ const UI = {
     sec.appendChild(shards);
     box.appendChild(prim);
     box.appendChild(sec);
+    this.onSetupChanged();
+  },
+
+  // ================= 1대1 로비 =================
+  onSetupChanged() {
+    if (this.mode === 'pvp' && typeof Net !== 'undefined') Net.pushSetup(false);
+  },
+
+  onStartClick() {
+    if (this.mode !== 'pvp') return startGame(this.currentSetup());
+    if (Net.status !== 'lobby') return;
+    if (Net.role === 'host') Net.hostStart();
+    else Net.setReady(!Net.localReady);
+  },
+
+  renderLobby() {
+    const pvp = this.mode === 'pvp';
+    document.querySelectorAll('#modeTabs [data-mode]').forEach(b => b.classList.toggle('sel', b.dataset.mode === this.mode));
+    $('lobbyPanel').classList.toggle('hidden', !pvp);
+    $('practiceWrap').classList.toggle('hidden', pvp);
+    const st = Net.status, inRoom = st !== 'idle';
+    $('lobbyIdle').classList.toggle('hidden', inRoom);
+    $('lobbyRoom').classList.toggle('hidden', !inRoom);
+    $('lobbyError').textContent = Net.error || '';
+    $('roomCode').textContent = Net.code || '-';
+    $('copyCodeBtn').classList.toggle('hidden', Net.role !== 'host');
+    const statusText = {
+      creating: '방을 만드는 중…',
+      waiting: '친구를 기다리는 중 — 방 코드를 알려 주세요',
+      connecting: '방에 연결하는 중…',
+      lobby: '연결됨' + (Net.ping ? ' · 핑 ' + Net.ping + 'ms' : ''),
+      ingame: '게임 중',
+    }[st] || '';
+    $('lobbyStatus').textContent = statusText;
+    $('lobbyStatus').className = st === 'lobby' ? 'ok' : 'wait';
+    $('lobbyTeam').textContent = !inRoom ? '' : Net.role === 'guest' ? '나: 레드 팀' : '나(방장): 블루 팀';
+    const r = Net.remote;
+    const champName = r && CHAMPIONS[r.champ] ? CHAMPIONS[r.champ].base.name : '?';
+    const roleName = r && ROLES[r.role] ? ROLES[r.role].name : '';
+    $('remoteInfo').innerHTML = st !== 'lobby' ? '' : r
+      ? '상대: <b>' + esc(champName) + '</b> · ' + esc(roleName) + ' · ' + (Net.remoteReady ? '<span class="ok">준비 완료</span>' : '<span class="wait">고르는 중</span>')
+      : '상대 정보를 받는 중…';
+    const btn = $('startBtn');
+    if (!pvp) { btn.textContent = '게임 시작'; btn.disabled = false; }
+    else if (st !== 'lobby') { btn.textContent = inRoom ? '연결 기다리는 중' : '방을 만들거나 참가하세요'; btn.disabled = true; }
+    else if (Net.role === 'host') { btn.textContent = Net.remoteReady ? '대결 시작' : '상대 준비 기다리는 중'; btn.disabled = !Net.remoteReady; }
+    else { btn.textContent = Net.localReady ? '준비 취소' : '준비 완료'; btn.disabled = false; }
+    btn.classList.toggle('readyOn', pvp && Net.role === 'guest' && Net.localReady);
+  },
+
+  exitMatch() {
+    if (this.game && this.game.mode === 'pvp') {
+      if (this.game.over || !Net.connected()) Net.backToLobby();
+      else Net.leave();
+      this.mode = 'pvp';
+    }
+    showChampSelect();
+  },
+
+  afterInventoryChange() {
+    const g = this.game;
+    if (!g) return;
+    this.cache = {};
+    this.buildSpells(g.player);
+    if (this.selSlot != null && !Items.slotOf(g.player, this.selSlot)) this.selSlot = null;
+    if (this.shopOpen) { this.renderShopList(); this.renderShopDetail(); }
   },
 
   // ================= 게임 연결 =================
@@ -264,6 +360,12 @@ const UI = {
     $('endScreen').classList.add('hidden');
     $('pauseScreen').classList.add('hidden');
     $('announce').innerHTML = '';
+    const pvp = game.mode === 'pvp';
+    this.mode = pvp ? 'pvp' : this.mode;
+    this.pauseOpen = false;
+    $('netText').classList.toggle('hidden', !pvp);
+    $('blueLbl').textContent = pvp && game.player.team === TEAM.BLUE ? '블루 (나)' : '블루';
+    $('redLbl').textContent = pvp && game.player.team === TEAM.RED ? '레드 (나)' : '레드';
     const p = game.player;
     $('portraitInner').innerHTML = iconHtml(champIcon(p.champId), p.base.icon || '⚔');
     const ks = p.runePage && RUNE_BY_ID[p.runePage.keys[0]];
@@ -310,10 +412,18 @@ const UI = {
     }
   },
 
+  // 1대1에서는 게임을 멈추지 않고 메뉴만 띄움
   setPaused(p) {
     if (!this.game) return;
-    this.game.paused = p;
+    const pvp = this.game.mode === 'pvp';
+    this.pauseOpen = p;
+    this.game.paused = pvp ? false : p;
     $('pauseScreen').classList.toggle('hidden', !p);
+    $('pauseScreen').classList.toggle('soft', pvp);
+    $('pauseTitle').textContent = pvp ? '메뉴' : '일시정지';
+    $('pauseNote').classList.toggle('hidden', !pvp);
+    $('restartBtn2').classList.toggle('hidden', pvp);
+    $('menuBtn2').textContent = pvp ? '나가기 (연결 끊기 · 패배)' : '시작 화면으로';
   },
 
   showEnd(game) {
@@ -322,16 +432,30 @@ const UI = {
     t.textContent = win ? '승리' : '패배';
     t.className = win ? 'win' : 'lose';
     const p = game.player;
-    $('endStats').innerHTML = [
+    const pvp = game.mode === 'pvp';
+    const rows = [
       ['챔피언', p.base.name + ' (' + ROLES[p.role].name + ')'],
       ['게임 시간', formatTime(game.time)],
+    ];
+    if (pvp) {
+      const foe = game.heroes.find(h => h !== p);
+      rows.push(['킬 (나 : 상대)', game.kills[p.team] + ' : ' + game.kills[1 - p.team]]);
+      if (foe) rows.push(['상대', foe.base.name + ' Lv.' + foe.level]);
+      if (game.disconnected) rows.push(['결과', '상대 연결 끊김']);
+    }
+    rows.push(
       ['레벨', p.level],
       ['미니언 / 몬스터 처치', p.cs],
       ['획득 골드', Math.round(p.goldEarned)],
       ['파괴한 포탑', game.towersKilled[p.team]],
       ['역할군 퀘스트', p.quest && p.quest.done ? '완료' : '미완료'],
       ['사망', p.deaths],
-    ].map(([k, v]) => '<span>' + k + '</span><b>' + v + '</b>').join('');
+    );
+    $('endStats').innerHTML = rows.map(([k, v]) => '<span>' + k + '</span><b>' + esc(v) + '</b>').join('');
+    $('restartBtn').textContent = pvp ? '로비로 돌아가기' : '다시 하기';
+    $('menuBtn').classList.toggle('hidden', pvp);
+    $('pauseScreen').classList.add('hidden');
+    this.pauseOpen = false;
     $('endScreen').classList.remove('hidden');
     this.toggleShop(false);
   },
@@ -363,7 +487,7 @@ const UI = {
       for (let i = 0; i < def.maxLvl; i++) pips.appendChild(document.createElement('i'));
       const slot = wrap.querySelector('.slot');
       const up = wrap.querySelector('.lvlUp');
-      up.onclick = () => { p.levelAbility(key); if (this.tipFn) this.showTip(); };
+      up.onclick = () => { Cmd.send({ k: 'level', key }); if (this.tipFn) this.showTip(); };
       this.bindTip(slot, () => this.abilityTip(p, key), key);
       this.abilityEls[key] = { slot, up, pips: [...pips.children], cd: slot.querySelector('.cd'), cost: slot.querySelector('.cost') };
     }
@@ -377,7 +501,7 @@ const UI = {
       const el = document.createElement('div');
       el.className = 'slot spell';
       el.innerHTML = iconHtml(spellIcon(s.key), '✦', 'spIcon') + '<span class="key">' + Controls.spellLabel(i) + '</span><span class="cnt"></span><div class="cd"></div>';
-      el.onclick = () => p.castSpell(i, p.x, p.y, null);
+      el.onclick = () => Cmd.send({ k: 'spell', i, x: p.x, y: p.y });
       this.bindTip(el, () => this.spellTip(p.spells[i].key, p));
       box.appendChild(el);
       this.spellEls.push({ el, key: s.key });
@@ -404,8 +528,8 @@ const UI = {
         if (!this.game) return;
         const pl = this.game.player;
         if (this.shopOpen && ref !== 'trinket') { this.selSlot = ref; this.selItem = null; this.renderShopDetail(); }
-        else if (ref === 'quest' && !pl.questSlot && pl.spells[2]) pl.castSpell(2, pl.x, pl.y, null);
-        else pl.useItem(ref);
+        else if (ref === 'quest' && !pl.questSlot && pl.spells[2]) Cmd.send({ k: 'spell', i: 2, x: pl.x, y: pl.y });
+        else Cmd.send({ k: 'item', ref, x: pl.x, y: pl.y });
       };
       this.bindTip(el, () => {
         const pl = this.game.player, s = Items.slotOf(pl, ref);
@@ -488,7 +612,7 @@ const UI = {
     const g = this.game, box = $('spellbookBody');
     if (!g) return;
     const p = g.player;
-    const sb = p.spellbook || (p.spellbook = { cd: 0, used: new Set() });
+    const sb = p.spellbook || { cd: 0, used: [] };
     const blocked = g.time < 360 ? '6분부터 사용할 수 있습니다' : p.inCombat() ? '전투 중에는 바꿀 수 없습니다' : g.time < sb.cd ? '재사용 대기 중 (' + Math.ceil(sb.cd - g.time) + '초)' : '';
     box.innerHTML = '<p class="sbNote">' + (blocked || '바꿀 주문을 고른 뒤, 교체할 슬롯(D/F)을 누르세요.') + '</p>';
     const grid = document.createElement('div');
@@ -510,12 +634,8 @@ const UI = {
       b.textContent = k + ' 슬롯과 교체';
       b.disabled = !!blocked || !this.sbPick;
       b.onclick = () => {
-        const key = this.sbPick;
-        if (!sb.used.has(key)) sb.used.add(key);
-        p.spells[i] = { key, cd: 0, charges: key === 'SummonerSmite' ? 1 : null, recharge: key === 'SummonerSmite' ? 90 : 0 };
-        sb.cd = g.time + Math.max(60, 300 - 25 * sb.used.size);
+        Cmd.send({ k: 'spellbook', i, key: this.sbPick });
         this.sbPick = null;
-        this.buildSpells(p);
         this.renderSpellbook();
       };
       row.appendChild(b);
@@ -572,18 +692,15 @@ const UI = {
       el.oncontextmenu = e => { e.preventDefault(); this.buy(id); };
       this.bindTip(el, () => this.itemTip(id));
     });
-    box.querySelectorAll('.bountyBtn').forEach(b => b.onclick = () => { Items.upgradeSupport(p, b.dataset.up); this.renderShopList(); this.renderShopDetail(); });
+    box.querySelectorAll('.bountyBtn').forEach(b => b.onclick = () => Cmd.send({ k: 'upgradeSupport', id: b.dataset.up }));
     $('shopNote').textContent = g.canShop(p) ? '' : '우물 근처에서만 구매·판매할 수 있습니다 (B: 귀환)';
   },
 
   buy(id) {
     const g = this.game;
-    const r = Shop.buy(g, g.player, id);
-    if (!r.ok) this.hint(r.reason);
-    else if (!r.used || r.used.length) this.buildSpells(g.player);
-    this.cache = {};
-    this.renderShopList();
-    this.renderShopDetail();
+    const chk = Shop.canBuy(g, g.player, id);
+    if (!chk.ok) { this.hint(chk.reason); return; }
+    Cmd.send({ k: 'buy', id });
   },
 
   treeHtml(p, id, ownedLeft) {
@@ -609,7 +726,7 @@ const UI = {
         '<button class="sell">판매 (+' + it.sell + ')</button>';
       const btn = box.querySelector('button');
       btn.disabled = !g.canShop(p);
-      btn.onclick = () => { Shop.sell(g, p, this.selSlot); if (!Items.slotOf(p, this.selSlot)) this.selSlot = null; this.cache = {}; this.renderShopList(); this.renderShopDetail(); };
+      btn.onclick = () => Cmd.send({ k: 'sell', ref: this.selSlot });
       return;
     }
     if (!this.selItem) {
@@ -687,6 +804,14 @@ const UI = {
     this.set('timer', $('timer'), 'text', formatTime(game.time));
     this.set('bt', $('blueTowers'), 'text', game.towersKilled[TEAM.BLUE]);
     this.set('rt', $('redTowers'), 'text', game.towersKilled[TEAM.RED]);
+    this.set('bk', $('blueKills'), 'text', game.kills[TEAM.BLUE]);
+    this.set('rk', $('redKills'), 'text', game.kills[TEAM.RED]);
+    if (game.mode === 'pvp') {
+      const waiting = Net.active && Net.waitingSince && performance.now() - Net.waitingSince > 700;
+      const txt = !Net.active && !game.over ? '연결 끊김' : waiting ? '상대 기다리는 중…' : '핑 ' + Net.ping + 'ms' + (Net.desync ? ' · 동기화 오류' : '');
+      this.set('net', $('netText'), 'text', txt);
+      $('netText').classList.toggle('bad', !!(waiting || Net.desync));
+    }
     this.set('cs', $('csText'), 'text', 'CS ' + p.cs);
     this.set('fps', $('fpsText'), 'text', Math.round(this.fps) + ' FPS');
     this.set('gold', $('goldText'), 'text', Math.floor(p.gold));
@@ -807,7 +932,7 @@ const UI = {
     rows.push('✨ ' + Math.round(u.mr || 0));
     if (u.gold && u.team !== game.player.team) rows.push('● ' + u.gold + 'G');
     const lane = u.lane ? ' (' + LANE_NAMES[u.lane] + ')' : '';
-    const html = '<div class="tname" style="color:' + col + '">' + u.name + lane + (u.large ? ' <small>대형</small>' : u.epic ? ' <small>에픽</small>' : '') + '</div>' +
+    const html = '<div class="tname" style="color:' + col + '">' + u.name + (u.kind === 'hero' ? ' Lv.' + u.level : '') + lane + (u.large ? ' <small>대형</small>' : u.epic ? ' <small>에픽</small>' : '') + '</div>' +
       '<div class="tbar"><div style="width:' + (u.hp / u.maxHp * 100).toFixed(1) + '%;background:' + col + '"></div></div>' +
       '<div class="trow"><span>' + Math.ceil(u.hp) + ' / ' + Math.round(u.maxHp) + '</span>' + rows.map(r => '<span>' + r + '</span>').join('') + '</div>' +
       (notes.length ? '<div class="tnote">' + notes.join(' · ') + '</div>' : '');

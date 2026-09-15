@@ -142,7 +142,7 @@ FX.titanicCleave = {
   hit(h, e, t) {
     const mult = e.st.empowered ? 2 : 1;
     e.st.empowered = false;
-    const dx = t.x - h.x, dy = t.y - h.y, d = Math.hypot(dx, dy) || 1;
+    const dx = t.x - h.x, dy = t.y - h.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
     const cx = t.x + dx / d * 150, cy = t.y + dy / d * 150;
     for (const u of h.game.enemiesInRadius(h.team, cx, cy, 250)) if (u !== t) proc(h, u, h.maxHp * e.p.secondary * mult, 'physical', { aoe: true, silent: true });
   },
@@ -260,7 +260,7 @@ FX.windsFury = {
     for (const u of list) {
       h.game.addProjectile(new Projectile(h.game, h, u, 1800, () => {
         if (!u.alive) return;
-        const crit = h.crit > 0 && Math.random() < h.crit;
+        const crit = h.crit > 0 && rng() < h.crit;
         proc(h, u, h.ad * e.p.adPct * (crit ? h.critMult() : 1), 'physical', { crit });
         h.applyOnHit(u);
       }, { color: '#cfe8a0', size: 5 }));

@@ -217,7 +217,7 @@ const Items = {
     s.id = into;
     s.count = ITEM_USE[into] && ITEM_USE[into].charges ? ITEM_USE[into].charges : 1;
     h.recalcStats();
-    if (h === h.game.player && UI.shopOpen) UI.refreshShop();
+    if (h === h.game.player && UI.shopOpen) { UI.renderShopList(); UI.renderShopDetail(); }
   },
 
   upgradeBoots(h) {

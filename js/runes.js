@@ -293,11 +293,11 @@ RUNE_FX[8347] = { desc: () => '소환사 주문 가속 +18, 아이템 가속 +10
 RUNE_FX[8410] = {
   desc: () => '이동 방해를 받은 근처 적 챔피언에게 다가갈 때 이동 속도가 7.5% 증가합니다. 자신이 방해한 대상이면 15%.',
   tick(h, e) {
-    if (!h.moving) return;
+    if (!h.moving || h.dirX == null) return;
     for (const u of h.game.enemiesInRadius(h.team, h.x, h.y, 1000)) {
       if (!champLike(u) || !u.isImpaired()) continue;
-      const ang = Math.abs(((Math.atan2(u.y - h.y, u.x - h.x) - h.facing + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
-      if (ang < 0.8) { h.dynMsPct += u.impairedBy === h ? 0.15 : 0.075; return; }
+      const dx = u.x - h.x, dy = u.y - h.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
+      if ((dx * h.dirX + dy * h.dirY) / d > 0.7) { h.dynMsPct += u.impairedBy === h ? 0.15 : 0.075; return; }
     }
   },
   impairApplied(h, e, t) { t.impairedBy = h; },

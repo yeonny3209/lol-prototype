@@ -198,7 +198,7 @@ class LeeSin extends Hero {
     g.dealDamage(this, t, dmg, { type: 'physical', ability: true, ult: true });
     g.addEffect({ type: 'kick', x: t.x, y: t.y, dur: 0.4, a: this.facing });
     if (!t.alive || t.ccImmune) return true;
-    const dx = t.x - this.x, dy = t.y - this.y, d = Math.hypot(dx, dy) || 1;
+    const dx = t.x - this.x, dy = t.y - this.y, d = Math.sqrt(dx * dx + dy * dy) || 1;
     const ux = dx / d, uy = dy / d;
     let k = LEE.R.knock;
     for (let s = 25; s <= LEE.R.knock; s += 25) if (!Nav.isWalkable(t.x + ux * s, t.y + uy * s)) { k = s - 25; break; }

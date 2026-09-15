@@ -317,3 +317,32 @@ kbd { background: #222a36; border: 1px solid #5b4a26; border-bottom-width: 2px; 
 .tItem.owned img { border-color: #6bd36b; box-shadow: 0 0 6px rgba(107, 211, 107, .6); }
 .intoRow { display: flex; flex-wrap: wrap; gap: 4px; }
 .buyBtn { margin-top: 4px; }
+
+/* ================= 1대1 온라인 ================= */
+#modeTabs { display: flex; gap: 5px; margin-left: 10px; }
+#modeTabs .roleBtn { flex: none; padding: 6px 14px; font-size: 14px; }
+.setupHead .patchTag { margin-left: auto; }
+#lobbyPanel { margin-top: 10px; background: rgba(20, 30, 48, .7); border: 1px solid #3a5a8a; border-radius: 8px; padding: 9px 12px; }
+#lobbyIdle, #lobbyRoom { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; }
+#lobbyPanel .or { color: #7d7563; }
+#lobbyPanel .lobbyNote { color: #8aa0c0; font-size: 12px; }
+#lobbyPanel .lbl { color: #9a917a; }
+#joinCode { width: 120px; background: #0b1017; border: 1px solid #5b6a86; color: #fff; border-radius: 4px; padding: 6px 8px; font-family: inherit; font-size: 15px; letter-spacing: 3px; text-transform: uppercase; }
+#roomCode { font-size: 24px; letter-spacing: 5px; color: #ffe38a; font-family: Consolas, monospace; }
+#lobbyStatus.ok, #remoteInfo .ok { color: #7fe39a; }
+#lobbyStatus.wait, #remoteInfo .wait { color: #f0c86a; }
+#lobbyTeam { color: #8fc3ff; }
+#leaveBtn { margin-left: auto; }
+#lobbyError { color: #ff8a6a; font-size: 12px; margin-top: 4px; }
+#lobbyError:empty { display: none; }
+.smallBtn.primary { background: #1f4a7a; border-color: #6aa8ff; color: #fff; font-size: 13px; padding: 6px 14px; }
+.bigBtn:disabled { filter: grayscale(.8) brightness(.7); cursor: not-allowed; }
+.bigBtn.readyOn { background: linear-gradient(#2f8a4a, #1d5a30); }
+#topbar .team { gap: 10px; }
+#topbar .kills { font-size: 22px; min-width: 22px; text-align: center; }
+#topbar .tw { font-size: 12px; color: #cfc6ad; font-weight: normal; }
+#topbar .tw b { color: #f0e6c8; }
+#netText { color: #8fe39a; }
+#netText.bad { color: #ff8a6a; }
+.screen.soft { background: rgba(3, 5, 8, .55); }
+#pauseNote { color: #b9b09a; }

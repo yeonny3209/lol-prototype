@@ -128,7 +128,7 @@ class Orianna extends Hero {
 
   // ---------- 스킬 ----------
   castQ(lvl, wx, wy) {
-    const dx = wx - this.x, dy = wy - this.y, d = Math.hypot(dx, dy);
+    const dx = wx - this.x, dy = wy - this.y, d = Math.sqrt(dx * dx + dy * dy);
     if (d > ORI.Q.range) { wx = this.x + dx / d * ORI.Q.range; wy = this.y + dy / d * ORI.Q.range; }
     this.launchBall('Q', lvl, clamp(wx, 0, M), clamp(wy, 0, M), null);
     if (d > 0) this.facing = Math.atan2(dy, dx);

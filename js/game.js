@@ -22,10 +22,17 @@ class Ward {
 }
 
 class Game {
+  // setup: 혼자 하기 = { champ, role, spells, runes, practice } / 1대1 = { mode: 'pvp', seed, blue, red, localTeam }
   constructor(setup = {}) {
     this.setup = setup;
-    this.champId = CHAMPIONS[setup.champ] ? setup.champ : 'orianna';
-    CFG.PRACTICE_CHAMP_EFFECTS = setup.practice !== false;
+    this.mode = setup.mode === 'pvp' ? 'pvp' : 'solo';
+    const localSetup = this.mode === 'pvp' ? (setup.localTeam === TEAM.RED ? setup.red : setup.blue) || {} : setup;
+    this.champId = CHAMPIONS[localSetup.champ] ? localSetup.champ : 'orianna';
+    CFG.PRACTICE_CHAMP_EFFECTS = this.mode === 'solo' && setup.practice !== false;
+    this.seed = Number.isInteger(setup.seed) ? setup.seed : (Math.random() * 2147483647) | 0;
+    this.kills = [0, 0];
+    this.firstBlood = false;
+    this.disconnected = false;
     this.time = 0;
     this.units = [];
     this.heroes = [];
@@ -57,6 +64,9 @@ class Game {
   }
 
   init() {
+    // 1대1에서 두 컴퓨터가 같은 id·같은 난수로 시작하도록 초기화
+    NEXT_ID = 1;
+    Rng.seed(this.seed);
     Nav.block.fill(0);
     this.teamStructs = [0, 1].map(team => {
       const L = LAYOUT[team];
@@ -76,8 +86,15 @@ class Game {
       return ts;
     });
     for (const def of CAMP_DEFS) this.camps.push(new Camp(this, def));
-    this.player = this.addUnit(CHAMPIONS[this.champId].create(this, TEAM.BLUE, this.setup));
-    Quests.init(this, this.player);
+    if (this.mode === 'pvp') {
+      const mk = (team, s) => { const st = Game.sanitize(s); return this.addUnit(CHAMPIONS[st.champ].create(this, team, st)); };
+      const blue = mk(TEAM.BLUE, this.setup.blue);
+      const red = mk(TEAM.RED, this.setup.red);
+      this.player = this.setup.localTeam === TEAM.RED ? red : blue;
+    } else {
+      this.player = this.addUnit(CHAMPIONS[this.champId].create(this, TEAM.BLUE, this.setup));
+    }
+    for (const h of this.heroes) Quests.init(this, h);
     this.centerCamera();
 
     // 시간 이벤트 안내
@@ -90,6 +107,10 @@ class Game {
     ];
     if (pl.abilityDefs) this.timeline.push({ at: 2.5, fn: () => pl.skillPoints > 0 && this.announce((Controls.wasd() ? 'Alt + 1~4' : 'Shift + Q/W/E/R') + ' 로 스킬을 배우세요', 'info') });
     this.timeline.push({ at: 5, fn: () => this.announce(pl.base.name + ' · ' + ROLES[pl.role].name + ' 퀘스트를 진행하세요', 'info') });
+    if (this.mode === 'pvp') {
+      const foe = this.heroes.find(h => h !== pl);
+      this.timeline.push({ at: 1.5, fn: () => this.announce('1대1 대결! 상대: ' + foe.base.name + ' — 적 넥서스를 파괴하세요', 'info') });
+    }
     this.timeline.sort((a, b) => a.at - b.at);
   }
 
@@ -292,7 +313,7 @@ class Game {
         if (d2 >= minD * minD) continue;
         const d = Math.sqrt(d2) || 0.01;
         const overlap = (minD - d) * 0.5;
-        const nx = d2 > 0 ? dx / d : Math.random() - 0.5, ny = d2 > 0 ? dy / d : Math.random() - 0.5;
+        const nx = d2 > 0 ? dx / d : rng() - 0.5, ny = d2 > 0 ? dy / d : rng() - 0.5;
         const wa = this.pushWeight(a), wb = this.pushWeight(b);
         const sa = wb / (wa + wb), sb = wa / (wa + wb);
         a.tryMove(-nx * overlap * sa * 2, -ny * overlap * sa * 2);
@@ -514,9 +535,21 @@ class Game {
     if (killerHero && !takers.includes(killerHero)) takers.push(killerHero);
 
     if (t.kind === 'hero') {
+      // 포탑·미니언에게 죽어도 최근 10초 안에 피해를 준 적 챔피언이 처치를 가져감
+      let killer = killerHero && killerHero.team !== t.team ? killerHero : null;
+      if (!killer) killer = takers.find(h => h.team !== t.team) || null;
       t.die();
-      for (const h of takers) h.fxEvent('takedown', t, h === killerHero);
+      let first = false;
+      if (killer) {
+        first = !this.firstBlood;
+        this.firstBlood = true;
+        this.kills[killer.team]++;
+        killer.addGold(300 + (first ? 100 : 0), killer === this.player ? t.x : null, t.y);   // 처치 300, 선취점 +100
+        killer.gainXp(Math.round(xpToNext(t.level) * 0.5));                                   // 처치 경험치 (추정)
+      }
+      for (const h of takers) h.fxEvent('takedown', t, h === killer);
       if (t === this.player) this.announce('당하셨습니다!', 'bad');
+      else if (killer === this.player) this.announce(first ? '선취점!' : '적을 처치했습니다!', 'good');
       return;
     }
     t.alive = false;
@@ -571,9 +604,29 @@ class Game {
       this.over = true;
       this.winner = 1 - t.team;
       this.endTimer = 2.8;
-      this.player.orderStop();
       this.announce(this.winner === this.player.team ? '승리!' : '패배!', this.winner === this.player.team ? 'good' : 'bad');
     }
+  }
+
+  // 1대1에서 상대 연결이 끊기면 남은 쪽 승리
+  endByDisconnect(winnerTeam) {
+    if (this.over) return;
+    this.over = true;
+    this.winner = winnerTeam;
+    this.disconnected = true;
+    this.endTimer = 1.5;
+    this.announce('상대와 연결이 끊어졌습니다', 'bad');
+  }
+
+  // 상대가 보낸 구성은 그대로 믿지 않고 유효한 값으로 고침
+  static sanitize(s) {
+    s = s && typeof s === 'object' ? s : {};
+    const champ = CHAMPIONS[s.champ] ? s.champ : 'orianna';
+    const base = CHAMPIONS[champ].base;
+    const role = QUEST_INFO[s.role] ? s.role : (base.defaultRole || 'mid');
+    let spells = Array.isArray(s.spells) ? [...new Set(s.spells.filter(k => SPELL_DEFS[k]))].slice(0, 2) : [];
+    if (spells.length < 2) spells = (base.recSpells || ['SummonerFlash', 'SummonerHeal']).slice();
+    return { champ, role, spells, runes: Runes.validate(s.runes), practice: false };
   }
 
   // 화면 표시용: 마우스 아래 유닛 찾기 (opts.wards: 아군 와드 포함)

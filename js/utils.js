@@ -3,7 +3,23 @@ function dist(ax, ay, bx, by) { const dx = bx - ax, dy = by - ay; return Math.sq
 function dist2(ax, ay, bx, by) { const dx = bx - ax, dy = by - ay; return dx * dx + dy * dy; }
 function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
 function lerp(a, b, t) { return a + (b - a) * t; }
+// 화면 효과용 난수 (게임 결과에 영향 없음)
 function rand(a, b) { return a + Math.random() * (b - a); }
+
+// 게임 로직용 난수: 1대1에서 두 컴퓨터가 똑같은 결과를 내도록 시드를 고정한 Mulberry32
+const Rng = {
+  s: 1,
+  seed(n) { this.s = (n >>> 0) || 1; },
+  next() {
+    this.s = (this.s + 0x6D2B79F5) >>> 0;
+    let t = this.s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  },
+};
+const rng = () => Rng.next();
+function srand(a, b) { return a + rng() * (b - a); }
 
 // 선분 AB 와 점 P 사이 거리
 function distToSegment(px, py, ax, ay, bx, by) {

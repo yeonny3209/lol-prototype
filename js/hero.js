@@ -10,8 +10,9 @@ function emptyStats() { const s = {}; for (const k of STAT_KEYS) s[k] = 0; retur
 class Hero extends Unit {
   constructor(game, team, base = HERO_BASE, setup = {}) {
     const f = LAYOUT[team].fountain;
+    const off = team === TEAM.RED ? -150 : 150;
     super(game, {
-      kind: 'hero', name: base.name, team, x: f.x + 150, y: f.y - 150, radius: base.radius,
+      kind: 'hero', name: base.name, team, x: f.x + off, y: f.y - off, radius: base.radius,
       hp: base.hp, ad: base.ad, as: base.as, armor: base.armor, mr: base.mr, range: base.range,
       ms: base.ms, projSpeed: base.projSpeed, sight: base.sight, hpRegen: base.hpRegen, windup: base.windup,
     });
@@ -404,7 +405,7 @@ class Hero extends Unit {
   blinkTo(wx, wy, maxRange) {
     const d = dist(this.x, this.y, wx, wy);
     const r = Math.min(d, maxRange);
-    const ux = d > 0 ? (wx - this.x) / d : Math.cos(this.facing), uy = d > 0 ? (wy - this.y) / d : Math.sin(this.facing);
+    const ux = d > 0 ? (wx - this.x) / d : (this.dirX ?? 1), uy = d > 0 ? (wy - this.y) / d : (this.dirY ?? 0);
     let tx = this.x + ux * r, ty = this.y + uy * r;
     if (!Nav.isWalkable(tx, ty)) {
       const near = Nav.nearestWalkablePoint(tx, ty);
@@ -492,7 +493,7 @@ class Hero extends Unit {
 
   onAttackHit(t) {
     if (!t.alive) return;
-    const ctx = { crit: this.crit > 0 && Math.random() < this.crit, critMult: this.critMult(), mult: 1, bonus: [], onHitOnly: false };
+    const ctx = { crit: this.crit > 0 && rng() < this.crit, critMult: this.critMult(), mult: 1, bonus: [], onHitOnly: false };
     this.fxEvent('preHit', t, ctx);
     let dmg = this.ad * ctx.mult;
     if (ctx.crit) dmg *= ctx.critMult;

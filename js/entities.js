@@ -275,7 +275,8 @@ class Unit {
         }
       }
     }
-    this.facing = Math.atan2(vy, vx);
+    this.facing = Math.atan2(vy, vx);   // 그리기용
+    this.dirX = vx; this.dirY = vy;     // 게임 로직용 이동 방향
     this.tryMove(vx * step, vy * step);
     this.moving = true;
     return d <= step + 0.5;
@@ -296,7 +297,7 @@ class Minion extends Unit {
     const s = MINION_STATS[mtype];
     const sp = LAYOUT[team].spawn[lane];
     super(game, {
-      kind: 'minion', name: s.name, team, x: sp.x + rand(-20, 20), y: sp.y + rand(-20, 20),
+      kind: 'minion', name: s.name, team, x: sp.x + srand(-20, 20), y: sp.y + srand(-20, 20),
       radius: s.radius, hp: Math.round(s.hp + s.hpUp * upgrades), ad: s.ad + s.adUp * upgrades,
       as: s.as, armor: s.armor, range: s.range, ms: s.ms, projSpeed: s.projSpeed, sight: s.sight, windup: 0.3,
     });
@@ -308,7 +309,7 @@ class Minion extends Unit {
     this.xp = s.xp;
     this.towerPct = s.towerPct;
     this.aggroRange = 650;
-    this.retarget = Math.random() * 0.3;
+    this.retarget = rng() * 0.3;
     this.bonusResist = 0;     // 선체파괴자 '승선 부대'
   }
 
@@ -422,7 +423,7 @@ class Monster extends Unit {
     this.epic = EPIC_MONSTERS.has(mtype);
     this.aggro = null;
     this.resetting = false;
-    this.facing = Math.random() * Math.PI * 2;
+    this.facing = rng() * Math.PI * 2;
     if (this.epic) {
       const mins = game.time / 60;
       this.maxHp = this.hp = Math.round(s.hp * (1 + mins * 0.03));
@@ -497,7 +498,8 @@ class Camp {
       let x = this.pos.x, y = this.pos.y;
       if (i > 0) {
         const a = (i - 1) / Math.max(1, n - 1) * Math.PI * 2 + 0.6;
-        x += Math.cos(a) * 95; y += Math.sin(a) * 95;
+        // 브라우저마다 삼각함수 끝자리가 다를 수 있어 정수로 반올림 (1대1 동기화)
+        x += Math.round(Math.cos(a) * 95); y += Math.round(Math.sin(a) * 95);
       }
       const m = new Monster(this.game, this, type, x, y);
       this.monsters.push(m);
@@ -516,8 +518,9 @@ class Camp {
 class Projectile {
   constructor(game, src, target, speed, onHit, style) {
     this.game = game;
-    this.x = src.x + Math.cos(src.facing) * src.radius * 0.6;
-    this.y = src.y + Math.sin(src.facing) * src.radius * 0.6 - (src.isStructure ? src.radius * 1.4 : 10);
+    const dx = target.x - src.x, dy = target.y - src.y, dd = Math.sqrt(dx * dx + dy * dy) || 1;
+    this.x = src.x + dx / dd * src.radius * 0.6;
+    this.y = src.y + dy / dd * src.radius * 0.6 - (src.isStructure ? src.radius * 1.4 : 10);
     this.target = target;
     this.speed = speed;
     this.onHit = onHit;
