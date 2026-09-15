@@ -1,8 +1,24 @@
 // ===== 시작 / 메인 루프 =====
 let game = null;
+const SETUP_KEY = 'lolproto.setup.v2';
 
-function startGame(champId) {
-  game = new Game(champId);
+function loadSetups() {
+  try { return JSON.parse(localStorage.getItem(SETUP_KEY)) || {}; } catch (e) { return {}; }
+}
+
+function saveSetup(setup) {
+  try {
+    const all = loadSetups();
+    all.last = setup.champ;
+    all[setup.champ] = setup;
+    localStorage.setItem(SETUP_KEY, JSON.stringify(all));
+  } catch (e) { /* 저장소를 쓸 수 없는 환경이면 무시 */ }
+}
+
+function startGame(setup) {
+  setup = setup || UI.currentSetup();
+  saveSetup(setup);
+  game = new Game(setup);
   window.game = game;
   game.cam.zoom = clamp(window.innerHeight / 1150, 0.6, 1.2);
   Input.attach(game);
@@ -15,11 +31,12 @@ function showChampSelect() {
   window.game = null;
   Input.game = null;
   UI.toggleShop(false);
+  UI.toggleSpellbook(false);
   UI.hideTip();
   UI.game = null;
   document.querySelectorAll('.hud').forEach(e => e.classList.add('hidden'));
   for (const id of ['endScreen', 'pauseScreen', 'deathOverlay', 'channelBar']) document.getElementById(id).classList.add('hidden');
-  UI.buildChampSelect();
+  UI.renderSetup();
   document.getElementById('startScreen').classList.remove('hidden');
 }
 

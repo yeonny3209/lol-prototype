@@ -39,6 +39,8 @@ const MAX_LEVEL = 18;
 // 기본 테스트 유닛 스탯 (나중에 챔피언 데이터로 교체 가능)
 const HERO_BASE = {
   id: 'basic', name: '기본 유닛', title: '테스트용 유닛', role: '스킬 없음', icon: '⚔', order: 99,
+  resource: 'none', adaptive: 'ad', defaultRole: 'bot', recSpells: ['SummonerFlash', 'SummonerHeal'],
+  recommended: ['1055', '2003', '3006', '3031', '3087', '3072', '3036'],
   hp: 620, hpPerLvl: 96,
   hpRegen: 1.6, hpRegenPerLvl: 0.12,
   ad: 58, adPerLvl: 3.2,
@@ -97,3 +99,42 @@ const SPELLS = {
   heal:  { name: '회복', key: 'D', cd: 240 },
   flash: { name: '점멸', key: 'F', cd: 300, range: 425 },
 };
+
+// 연습 규칙: 아직 적 챔피언이 없어서 '챔피언 대상' 효과(룬·아이템·주문)를 미니언·몬스터에게도 적용합니다.
+// 게임 시작 화면에서 끌 수 있고, 적 챔피언이 추가되면 끄면 됩니다.
+CFG.PRACTICE_CHAMP_EFFECTS = true;
+function champLike(u) {
+  return !!u && (u.kind === 'hero' || (CFG.PRACTICE_CHAMP_EFFECTS && (u.kind === 'minion' || u.kind === 'monster')));
+}
+
+// 조작 방식: 'classic' (우클릭 이동) / 'wasd' (키보드 이동, 2026 LoL WASD 기본 배치)
+const Controls = {
+  KEY: 'lolproto.controls.v1',
+  scheme: 'classic',
+  angle45: false,
+  load() {
+    try {
+      const s = JSON.parse(localStorage.getItem(this.KEY)) || {};
+      if (s.scheme === 'wasd' || s.scheme === 'classic') this.scheme = s.scheme;
+      this.angle45 = !!s.angle45;
+    } catch (e) { /* 저장소를 쓸 수 없으면 기본값 */ }
+  },
+  save() {
+    try { localStorage.setItem(this.KEY, JSON.stringify({ scheme: this.scheme, angle45: this.angle45 })); } catch (e) { /* 무시 */ }
+  },
+  wasd() { return this.scheme === 'wasd'; },
+  abilityLabel(key) { return this.wasd() ? { Q: '우클릭', W: 'Shift', E: 'E', R: 'R' }[key] : key; },
+  spellLabel(i) { return this.wasd() ? ['Q', 'F'][i] : ['D', 'F'][i]; },
+  levelKey(key) { return this.wasd() ? 'Alt+' + ('QWER'.indexOf(key) + 1) : 'Shift+' + key; },
+};
+Controls.load();
+
+const ROLES = {
+  top: { name: '탑', lane: 'top' },
+  jungle: { name: '정글', lane: null },
+  mid: { name: '미드', lane: 'mid' },
+  bot: { name: '원딜', lane: 'bot' },
+  support: { name: '서포터', lane: 'bot' },
+};
+const LARGE_MONSTERS = new Set(['blueBuff', 'redBuff', 'gromp', 'bigWolf', 'bigRaptor', 'bigKrug']);
+const EPIC_MONSTERS = new Set(['dragon', 'baron']);

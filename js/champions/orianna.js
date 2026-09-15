@@ -18,7 +18,9 @@ const ORIANNA_BASE = {
   radius: 30,
   sight: 1200,
   windup: 0.2,
-  recommended: ['ring', 'potion', 'sorcBoots', 'chapter', 'echoStaff', 'rabadon', 'voidStaff'],
+  resource: 'mana', adaptive: 'ap', defaultRole: 'mid',
+  recSpells: ['SummonerFlash', 'SummonerTeleport'],
+  recommended: ['1056', '2003', '3802', '6655', '3020', '4645', '3089', '3135', '3157'],
 };
 
 const ORI = {
@@ -71,8 +73,8 @@ const ORIANNA_ABILITIES = {
 };
 
 class Orianna extends Hero {
-  constructor(game, team) {
-    super(game, team, ORIANNA_BASE);
+  constructor(game, team, setup) {
+    super(game, team, ORIANNA_BASE, setup);
     this.abilityDefs = ORIANNA_ABILITIES;
     // 구체 상태: held(누군가에게 붙음) / ground(바닥) / flying(이동 중)
     this.ball = { state: 'held', holder: this, x: this.x, y: this.y, mode: null, target: null, tx: 0, ty: 0, speed: 0, lvl: 0, hitIds: null, hitCount: 0, trail: [] };
@@ -167,19 +169,19 @@ class Orianna extends Hero {
     const p = this.ballPos(), R = ORI.R;
     const dmg = R.dmg[lvl - 1] + R.ap * this.ap;
     for (const u of this.game.enemiesInRadius(this.team, p.x, p.y, R.radius)) {
-      this.game.dealDamage(this, u, dmg, { magic: true, ability: true });
+      this.game.dealDamage(this, u, dmg, { magic: true, ability: true, ult: true, aoe: true });
       if (!u.alive) continue;
       const d = dist(u.x, u.y, p.x, p.y);
       const move = Math.min(R.pull, Math.max(0, d - 40));
-      if (move > 5) u.knockTo(u.x + (p.x - u.x) / d * move, u.y + (p.y - u.y) / d * move, 0.45, 60);
-      else u.knockTo(u.x, u.y, 0.45, 60);
+      if (move > 5) this.game.applyKnock(this, u, u.x + (p.x - u.x) / d * move, u.y + (p.y - u.y) / d * move, 0.45, 60);
+      else this.game.applyKnock(this, u, u.x, u.y, 0.45, 60);
     }
     this.game.addEffect({ type: 'shockwave', x: p.x, y: p.y, r: R.radius, dur: 0.55 });
   }
 
   applyShield(t, lvl) {
     const E = ORI.E;
-    t.addShield('oriE', E.shield[lvl - 1] + E.shieldAp * this.ap, E.shieldDur);
+    t.addShield('oriE', (E.shield[lvl - 1] + E.shieldAp * this.ap) * (1 + this.hsp), E.shieldDur);
     this.game.addEffect({ type: 'pulse', x: t.x, y: t.y, r: 70, color: '#ffd98a', dur: 0.35, follow: t });
   }
 
@@ -212,7 +214,7 @@ class Orianna extends Hero {
         const rr = W.radius + u.radius;
         if (dist2(u.x, u.y, f.x, f.y) > rr * rr) continue;
         if (u.team === this.team) { if (u.kind === 'hero') u.addHaste('oriW', W.haste[f.lvl - 1], W.decay, true); }
-        else if (g.isVulnerable(u)) u.addSlow('oriW', W.slow[f.lvl - 1], W.decay, true);
+        else if (g.isVulnerable(u)) g.applySlow(this, u, 'oriW', W.slow[f.lvl - 1], W.decay, true);
       }
     }
     this.fields = this.fields.filter(f => f.t < f.dur);
@@ -423,4 +425,4 @@ class Orianna extends Hero {
   }
 }
 
-CHAMPIONS.orianna = { base: ORIANNA_BASE, create: (game, team) => new Orianna(game, team) };
+CHAMPIONS.orianna = { base: ORIANNA_BASE, create: (game, team, setup) => new Orianna(game, team, setup) };

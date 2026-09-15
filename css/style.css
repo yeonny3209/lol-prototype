@@ -174,3 +174,146 @@ kbd { background: #222a36; border: 1px solid #5b4a26; border-bottom-width: 2px; 
 .tipMeta .warn { color: #ff8a6a; }
 .tipBody b { color: #c9a0ff; }
 .tipBody u { text-decoration: none; color: #ffe9a0; font-weight: bold; }
+
+/* ================= 2026 개편: 공통 ================= */
+.icoFb { display: inline-flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 11px; color: #d8c89a; background: #1a2230; }
+.est { color: #9a917a; font-style: normal; font-size: 11px; }
+.warn { color: #ff8a6a; }
+.smallBtn { background: #1f2a38; border: 1px solid #6b5a33; color: #f0dca0; border-radius: 4px; padding: 5px 10px; cursor: pointer; font-family: inherit; font-size: 12px; }
+.smallBtn:hover { background: #2a3645; }
+.smallBtn:disabled { opacity: .45; cursor: not-allowed; }
+.tipStats { color: #8fd0ff; margin: 4px 0 6px; font-size: 12px; }
+.tipKey.gold { color: #ffd34d; }
+
+/* ================= 시작 화면 ================= */
+#startScreen { align-items: flex-start; }
+.setupBox { width: min(1180px, 97vw); margin: 18px auto; background: rgba(8, 12, 18, .85); border: 1px solid #5b4a26; border-radius: 10px; padding: 14px 18px; }
+.setupHead { display: flex; align-items: baseline; gap: 16px; }
+.setupHead h1 { margin: 0; font-size: 34px; color: #f0dca0; letter-spacing: 3px; }
+.setupHead h1 small { font-size: 14px; color: #9a917a; }
+.patchTag { font-size: 12px; color: #9a917a; }
+.patchTag b { color: #c8a85a; }
+.setupGrid { display: grid; grid-template-columns: 370px 1fr; gap: 18px; margin-top: 8px; }
+.setupCol h3 { margin: 12px 0 6px; font-size: 14px; color: #c8a85a; font-weight: normal; letter-spacing: 1px; }
+.setupCol h3 small, .runeCol h4 small { color: #7d7563; font-size: 11px; margin-left: 6px; }
+#champSelect { justify-content: flex-start; gap: 10px; margin: 0; }
+.champCard { width: 112px; padding: 8px 6px; text-align: center; }
+.champCard .cIcon { width: 64px; height: 64px; margin: 0 auto; border-radius: 50%; overflow: hidden; border: 2px solid #8b6f35; font-size: 34px; line-height: 60px; }
+.champCard .cIcon img { width: 100%; height: 100%; display: block; }
+.champCard .cName { font-size: 15px; }
+#roleSelect { display: flex; gap: 5px; }
+.roleBtn { flex: 1; background: #151d28; border: 1px solid #3a3326; color: #cfc6ad; padding: 6px 0; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 13px; }
+.roleBtn.sel { border-color: #ffd34d; color: #ffd34d; background: #2a2412; }
+#roleInfo { font-size: 12px; color: #b9b09a; line-height: 1.55; margin-top: 6px; background: rgba(0, 0, 0, .3); border-radius: 5px; padding: 6px 8px; }
+#roleInfo b { color: #e8d8a8; }
+#spellSlots { display: flex; gap: 8px; }
+.spellPick { flex: 1; display: flex; align-items: center; gap: 8px; background: #151d28; border: 2px solid #3a3326; border-radius: 6px; padding: 4px; cursor: pointer; position: relative; }
+.spellPick.sel { border-color: #ffd34d; }
+.spellPick img, .spellPick .icoFb { width: 40px; height: 40px; border-radius: 4px; }
+.spellPick .key { position: absolute; left: 34px; bottom: 2px; font-size: 11px; font-weight: bold; color: #ffd34d; text-shadow: 0 0 3px #000; }
+.spellPick .nm { font-size: 13px; }
+#spellGrid, .spellGrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 7px; }
+.spellOpt { text-align: center; font-size: 10px; color: #b9b09a; cursor: pointer; border: 1px solid transparent; border-radius: 4px; padding: 3px 0; }
+.spellOpt img, .spellOpt .icoFb { width: 36px; height: 36px; display: block; margin: 0 auto 2px; border-radius: 4px; }
+.spellOpt:hover, .spellOpt.sel { border-color: #8b6f35; background: #1f2a38; }
+.spellOpt.used img { opacity: .4; }
+.runeHead { display: flex; align-items: center; gap: 8px; }
+.runeHead h3 { flex: 1; }
+#runeEditor { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.runeCol { background: rgba(0, 0, 0, .28); border: 1px solid #2c2718; border-radius: 8px; padding: 8px 10px; }
+.runeCol h4 { margin: 2px 0 6px; font-size: 13px; color: #e8d8a8; font-weight: normal; }
+.treeTabs { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+.treeTab { display: flex; align-items: center; gap: 3px; padding: 3px 6px; border: 1px solid #3a3326; border-radius: 12px; cursor: pointer; font-size: 11px; color: #b9b09a; }
+.treeTab img, .treeTab .icoFb { width: 18px; height: 18px; }
+.treeTab.sel { border-color: #ffd34d; color: #ffd34d; background: #2a2412; }
+.runeRow { display: flex; justify-content: center; gap: 12px; padding: 5px 0; border-top: 1px solid #221e14; }
+.runeRow.keystones { border-top: none; }
+.runeOpt { width: 38px; height: 38px; border-radius: 50%; cursor: pointer; filter: grayscale(1) brightness(.8); opacity: .75; border: 2px solid transparent; overflow: hidden; background: #0e1522; }
+.runeOpt.sel { opacity: 1; background: #1c2438; }
+.runeOpt img { width: 100%; height: 100%; display: block; }
+.runeOpt.big { width: 52px; height: 52px; }
+.runeOpt.sel { filter: none; border-color: #ffd34d; box-shadow: 0 0 8px rgba(255, 211, 77, .4); }
+.runeOpt:hover { filter: none; }
+.runeOpt.shard { width: 28px; height: 28px; }
+.shardBox { margin-top: 6px; }
+.shardLbl { width: 36px; font-size: 11px; color: #7d7563; align-self: center; }
+.setupFoot { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.practice { flex: 1; font-size: 12px; color: #b9b09a; }
+.setupFoot .bigBtn { margin: 0; min-width: 200px; padding: 10px 30px; }
+#controlsBox { margin: 10px 0 0; }
+#controlsBox .controls { margin: 0; }
+#ctrlPick { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #c8a85a; }
+#ctrlPick .roleBtn { flex: none; padding: 5px 12px; }
+#angleWrap { color: #b9b09a; margin-left: 4px; }
+
+/* ================= HUD ================= */
+/* 하단 HUD는 미니맵(오른쪽 244px)을 뺀 공간의 가운데에 놓아 겹치지 않게 */
+#bottomHud { padding-top: 10px; left: calc((100vw - 244px) / 2); }
+#buffBar { left: calc((100vw - 244px) / 2); }
+#channelBar { left: calc((100vw - 244px) / 2); }
+#statsPanel { grid-template-columns: auto auto; min-width: 150px; font-size: 11px; gap: 1px 8px; }
+#portraitInner { overflow: hidden; }
+#portraitInner img { width: 100%; height: 100%; display: block; }
+#keystone { position: absolute; top: -4px; right: -6px; width: 30px; height: 30px; border-radius: 50%; overflow: hidden; background: #0b1017; border: 2px solid #b8943d; }
+#keystone img { width: 100%; height: 100%; }
+#spellRow { display: flex; gap: 5px; align-items: flex-end; }
+.slot.spell { overflow: hidden; }
+.slot.spell .spIcon { width: 100%; height: 100%; display: block; }
+.slot.spell .cnt { position: absolute; top: 0; left: 2px; font-size: 11px; font-weight: bold; color: #ffd34d; text-shadow: 0 0 3px #000; z-index: 2; }
+.spellbookBtn { background: #1b2430; border: 1px solid #6b5a33; color: #f0dca0; border-radius: 4px; width: 28px; height: 50px; cursor: pointer; }
+.slot.ability.recast { box-shadow: 0 0 0 2px #ffd34d, 0 0 12px rgba(255, 211, 77, .7); }
+#resBar.energy .fill { background: linear-gradient(#ffe36b, #c9a21e); }
+#resBar.energy .txt { color: #2a2000; font-weight: bold; font-size: 10px; text-shadow: none; }
+#items { grid-template-columns: repeat(4, 42px); }
+.item { overflow: hidden; }
+.item .ic { width: 100%; height: 100%; display: flex; }
+.item .ic img { width: 100%; height: 100%; display: block; }
+.item .key { z-index: 2; text-shadow: 0 0 3px #000; color: #eee; }
+.item .cnt { z-index: 2; }
+.item .cd { position: absolute; inset: 0; background: rgba(0, 0, 0, .65); display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 13px; z-index: 1; }
+.item .cd:empty { display: none; }
+.item.trinket { border-color: #3f6f5a; border-radius: 50%; }
+.item.questSlot { border-color: #8b6f35; border-style: dashed; }
+.item.selSell { border-color: #ffd34d; }
+#questFrame { top: 120px; left: 10px; width: 210px; background: rgba(10, 14, 20, .85); border: 1px solid #5b4a26; border-radius: 6px; padding: 6px 9px; font-size: 12px; cursor: help; }
+#questFrame .qTitle { font-weight: bold; color: #f0dca0; }
+#questFrame .qDone { color: #7fe39a; font-size: 11px; }
+#questFrame .qBar { height: 7px; background: #1e1a10; border-radius: 3px; overflow: hidden; margin: 4px 0 2px; }
+#questFrame .qBar div { height: 100%; background: linear-gradient(90deg, #c8a85a, #ffe38a); }
+#questFrame .qText { color: #b9b09a; font-size: 11px; }
+#spellbook { top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(460px, 94vw); padding-bottom: 12px; }
+#spellbookBody { padding: 8px 14px; }
+.sbNote { font-size: 12px; color: #b9b09a; }
+.sbSlots { display: flex; gap: 8px; margin-top: 10px; }
+
+/* ================= 상점 ================= */
+#shop { width: min(980px, 96vw); height: min(640px, 86vh); grid-template-rows: auto auto 1fr; grid-template-columns: 1fr 330px; }
+#shop .panelHead { grid-column: 1 / 3; }
+#shopSearch { background: #0b1017; border: 1px solid #3a3326; color: #eee; border-radius: 4px; padding: 5px 8px; font-family: inherit; width: 180px; }
+#shopTabs { grid-column: 1 / 3; display: flex; gap: 4px; padding: 6px 10px; border-bottom: 1px solid #2c2718; flex-wrap: wrap; }
+.shopTab { background: #151d28; border: 1px solid #3a3326; color: #cfc6ad; border-radius: 14px; padding: 3px 11px; cursor: pointer; font-family: inherit; font-size: 12px; }
+.shopTab.sel { border-color: #ffd34d; color: #ffd34d; }
+#shopList .grid { display: grid; grid-template-columns: repeat(auto-fill, 56px); gap: 6px; }
+.shopItem { width: 56px; padding: 3px; }
+.shopItem .ic, .shopItem img.ic, .shopItem .icoFb { width: 48px; height: 48px; display: block; margin: 0 auto; border-radius: 4px; font-size: 11px; }
+.shopItem.poor img { filter: grayscale(.8) brightness(.7); }
+#shopList .empty { color: #7d7563; }
+.bountyBar { background: #1f2a1a; border: 1px solid #5b8a4a; border-radius: 6px; padding: 6px; margin-bottom: 8px; font-size: 12px; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; }
+.bountyBtn { display: flex; align-items: center; gap: 4px; background: #152015; border: 1px solid #5b8a4a; color: #d8f0c8; border-radius: 4px; padding: 2px 6px; cursor: pointer; font-family: inherit; font-size: 11px; }
+.bountyBtn img, .bountyBtn .icoFb { width: 22px; height: 22px; }
+#shopDetail { overflow-y: auto; gap: 6px; }
+.dHead { display: flex; gap: 10px; align-items: center; }
+.dHead img, .dHead .icoFb { width: 52px; height: 52px; border-radius: 6px; border: 1px solid #8b6f35; }
+.dcost { font-size: 12px; color: #ffd34d; }
+.dcost small { color: #9a917a; }
+.dsec { font-size: 12px; color: #c8a85a; border-bottom: 1px solid #2c2718; margin-top: 4px; }
+.dwarn { font-size: 12px; color: #ff8a6a; }
+.ddesc { font-size: 12px; line-height: 1.55; }
+.tree { display: flex; justify-content: center; padding: 4px 0; }
+.tnode { display: flex; flex-direction: column; align-items: center; }
+.tKids { display: flex; gap: 4px; margin-top: 4px; padding-top: 4px; border-top: 1px solid #3a3326; }
+.tItem { display: flex; flex-direction: column; align-items: center; cursor: pointer; font-size: 10px; color: #ffd34d; }
+.tItem img, .tItem .icoFb { width: 34px; height: 34px; border-radius: 4px; border: 1px solid #3a3326; }
+.tItem.owned img { border-color: #6bd36b; box-shadow: 0 0 6px rgba(107, 211, 107, .6); }
+.intoRow { display: flex; flex-wrap: wrap; gap: 4px; }
+.buyBtn { margin-top: 4px; }

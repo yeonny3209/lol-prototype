@@ -306,3 +306,21 @@ const Nav = {
     return out;
   },
 };
+
+// ---------- 지역 판정 (퀘스트·룬·정글 동료용) ----------
+MapData.laneAt = function (x, y, margin = 520) {
+  for (const lane of ['top', 'mid', 'bot']) {
+    const pts = BLUE_LAYOUT.path[lane];
+    for (let i = 0; i < pts.length - 2; i++) {
+      if (distToSegment(x, y, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <= margin) return lane;
+    }
+  }
+  return null;
+};
+MapData.zoneAt = function (x, y) {
+  if (dist(x, y, 700, 7300) < 1250 || dist(x, y, 7300, 700) < 1250) return 'base';
+  if (distToSegment(x, y, 950, 950, 7050, 7050) <= 360 || dist(x, y, BARON_PIT.x, BARON_PIT.y) < 420 || dist(x, y, DRAGON_PIT.x, DRAGON_PIT.y) < 420) return 'river';
+  const lane = MapData.laneAt(x, y, 330);
+  if (lane) return 'lane';
+  return 'jungle';
+};

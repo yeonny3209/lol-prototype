@@ -131,6 +131,7 @@ const Renderer = {
     this.drawTerrainLayers(ctx, view, true);
     this.drawTrees(ctx, view);
     this.drawCampTimers(ctx, game, view);
+    this.drawZones(ctx, game);
     this.drawGroundFx(ctx, game);
     for (const h of game.heroes) if (h.drawGround && (h.team === pl.team || game.isVisible(pl.team, h))) h.drawGround(ctx, this, game);
     if (UI.hoverAbility && pl.alive && pl.drawAbilityRange) pl.drawAbilityRange(ctx, UI.hoverAbility, game);
@@ -149,7 +150,10 @@ const Renderer = {
     this.drawTurretRanges(ctx, game);
     for (const u of list) this.drawUnit(ctx, u, game);
     for (const h of game.heroes) if (h.drawOver && (h.team === pl.team || game.isVisible(pl.team, h))) h.drawOver(ctx, this, game);
+    this.drawWards(ctx, game);
     this.drawProjectiles(ctx, game);
+    this.drawSkillShots(ctx, game);
+    this.drawTeleportTargets(ctx, game);
     this.drawFx(ctx, game);
     ctx.restore();
 
@@ -492,6 +496,50 @@ const Renderer = {
             ctx.beginPath(); ctx.arc(x, y, e.r * kk, 0, TAU); ctx.stroke();
           }
           break;
+        case 'bolt': {
+          ctx.strokeStyle = e.color || 'rgba(190,230,255,' + (1 - k).toFixed(2) + ')';
+          ctx.globalAlpha = 1 - k;
+          ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.moveTo(e.x, e.y);
+          const segs = 6;
+          for (let i = 1; i < segs; i++) {
+            const tt = i / segs;
+            ctx.lineTo(lerp(e.x, e.x2, tt) + rand(-14, 14), lerp(e.y, e.y2, tt) + rand(-14, 14));
+          }
+          ctx.lineTo(e.x2, e.y2); ctx.stroke();
+          ctx.globalAlpha = 1;
+          break;
+        }
+        case 'smite': {
+          const col = ['255,225,120', '255,160,90', '255,110,70'][e.tier || 0];
+          this.circle(ctx, x, y, e.r + 30 * (1 - k), 'rgba(' + col + ',' + (0.5 * (1 - k)).toFixed(2) + ')');
+          ctx.strokeStyle = 'rgba(' + col + ',' + (1 - k).toFixed(2) + ')'; ctx.lineWidth = 8;
+          ctx.beginPath(); ctx.moveTo(x, y - 260 * (1 - k * 0.5)); ctx.lineTo(x, y); ctx.stroke();
+          break;
+        }
+        case 'kick':
+          for (let i = 0; i < 5; i++) {
+            const a = e.a + (i - 2) * 0.3;
+            ctx.strokeStyle = 'rgba(255,190,80,' + (1 - k).toFixed(2) + ')'; ctx.lineWidth = 6;
+            ctx.beginPath(); ctx.moveTo(x + Math.cos(a) * 30, y + Math.sin(a) * 30); ctx.lineTo(x + Math.cos(a) * (60 + k * 120), y + Math.sin(a) * (60 + k * 120)); ctx.stroke();
+          }
+          this.circle(ctx, x, y, 40 + k * 40, 'rgba(255,220,140,' + (0.5 * (1 - k)).toFixed(2) + ')');
+          break;
+        case 'stasis':
+        case 'revive': {
+          const col = e.type === 'stasis' ? '255,215,110' : '140,230,255';
+          this.circle(ctx, x, y, 48, 'rgba(' + col + ',0.28)', 'rgba(' + col + ',0.9)', 4);
+          ctx.strokeStyle = 'rgba(' + col + ',0.6)'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(x, y, 58, game.time * 3, game.time * 3 + TAU * (1 - k)); ctx.stroke();
+          break;
+        }
+        case 'comet': {
+          const hy = (1 - k) * 420;
+          this.circle(ctx, x, y, 140, 'rgba(180,120,255,' + (0.1 + 0.2 * k).toFixed(2) + ')', 'rgba(200,150,255,0.6)', 2);
+          this.circle(ctx, x - hy * 0.4, y - hy, 18, '#d9b8ff');
+          this.circle(ctx, x - hy * 0.4 - 16, y - hy - 30, 10, 'rgba(217,184,255,0.5)');
+          break;
+        }
         case 'death':
           if (e.big) {
             for (let i = 0; i < 10; i++) {
@@ -507,6 +555,59 @@ const Renderer = {
     }
   },
 
+  // ---------- 장판 / 와드 / 스킬샷 ----------
+  drawZones(ctx, game) {
+    for (const z of game.zones) {
+      const k = z.t / z.dur, a = k < 0.85 ? 1 : (1 - k) / 0.15;
+      const col = z.color || '#9fdcff';
+      ctx.fillStyle = this.alphaColor(col, 0.16 * a);
+      ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, TAU); ctx.fill();
+      ctx.strokeStyle = this.alphaColor(col, 0.6 * a); ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+  },
+
+  drawWards(ctx, game) {
+    const pt = game.player.team;
+    for (const w of game.wards) {
+      if (w.team !== pt) continue;
+      const col = w.type === 'control' ? '#ff5a5a' : w.type === 'farsight' ? '#6ab8ff' : '#ffd84a';
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath(); ctx.ellipse(w.x, w.y + 8, 16, 7, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#2a2d36';
+      ctx.fillRect(w.x - 3, w.y - 30, 6, 34);
+      this.circle(ctx, w.x, w.y - 34, 11, col, '#111', 2);
+      this.circle(ctx, w.x, w.y - 34, 4 + Math.sin(game.time * 4 + w.id) * 1.5, 'rgba(255,255,255,0.85)');
+      if (isFinite(w.maxT)) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(w.x, w.y - 34, 15, -Math.PI / 2, -Math.PI / 2 + TAU * w.t / w.maxT); ctx.stroke();
+      }
+    }
+  },
+
+  drawSkillShots(ctx, game) {
+    for (const s of game.skillshots) {
+      for (let i = 0; i < s.trail.length; i++) {
+        const q = s.trail[i];
+        this.circle(ctx, q.x, q.y, 10 + i * 2, this.alphaColor(s.color, 0.08 + i * 0.05));
+      }
+      ctx.strokeStyle = s.color; ctx.lineWidth = 5;
+      const a = Math.atan2(s.dy, s.dx);
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.width * 0.6, a - 1.1, a + 1.1); ctx.stroke();
+      ctx.beginPath(); ctx.arc(s.x - s.dx * 14, s.y - s.dy * 14, s.width * 0.45, a - 1.1, a + 1.1); ctx.stroke();
+    }
+  },
+
+  drawTeleportTargets(ctx, game) {
+    if (!Input.targeting) return;
+    const pl = game.player;
+    ctx.strokeStyle = 'rgba(190,120,255,0.8)'; ctx.lineWidth = 4;
+    for (const u of game.units.concat(game.wards)) {
+      if (!SPELL_DEFS.SummonerTeleport.validTarget(pl, u)) continue;
+      ctx.beginPath(); ctx.arc(u.x, u.y, (u.radius || 20) + 18 + Math.sin(game.time * 6) * 4, 0, TAU); ctx.stroke();
+    }
+  },
+
   // ---------- 전장의 안개 ----------
   drawFog(game, view) {
     const f = this.fog, fc = this.fogCtx, c = game.cam, z = c.zoom;
@@ -517,7 +618,7 @@ const Renderer = {
     fc.fillRect(0, 0, f.width, f.height);
     fc.globalCompositeOperation = 'destination-out';
     const team = game.player.team;
-    for (const u of game.units) {
+    for (const u of game.units.concat(game.wards)) {
       if (!u.alive || u.team !== team || !u.sight) continue;
       const R = u.sight;
       if (u.x + R < view[0] || u.x - R > view[2] || u.y + R < view[1] || u.y - R > view[3]) continue;
@@ -626,7 +727,7 @@ const Renderer = {
     fc.globalCompositeOperation = 'destination-out';
     fc.fillStyle = '#000';
     fc.beginPath();
-    for (const u of game.units) {
+    for (const u of game.units.concat(game.wards)) {
       if (!u.alive || u.team !== pt || !u.sight) continue;
       fc.moveTo(u.x * fk + u.sight * fk, u.y * fk);
       fc.arc(u.x * fk, u.y * fk, u.sight * fk, 0, TAU);
@@ -648,6 +749,11 @@ const Renderer = {
       const r = (u.kind === 'monster' ? (u.radius > 60 ? 5 : 3) : 2.2) * d;
       ctx.fillStyle = u.kind === 'monster' ? '#e8b840' : (u.team === TEAM.BLUE ? '#6aa8ff' : '#ff6060');
       ctx.beginPath(); ctx.arc(u.x * k, u.y * k, r, 0, TAU); ctx.fill();
+    }
+    for (const w of game.wards) {
+      if (w.team !== pt) continue;
+      ctx.fillStyle = w.type === 'control' ? '#ff5a5a' : '#ffd84a';
+      ctx.beginPath(); ctx.arc(w.x * k, w.y * k, 3 * d, 0, TAU); ctx.fill();
     }
     for (const h of game.heroes) {
       if (!h.alive || !game.isVisible(pt, h)) continue;

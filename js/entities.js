@@ -33,53 +33,136 @@ class Unit {
     this.lastDamagedTime = -99;
     this.lastDamagedBy = null;
     this.ccImmune = !!o.ccImmune;
-    this.slows = null;       // id -> { pct, t, dur, decay }
+
+    // 상태 효과
+    this.slows = null;        // id -> { pct, t, dur, decay }
     this.hastes = null;
-    this.shields = null;     // id -> { amt, t }
-    this.displace = null;    // 에어본 / 끌어당김
+    this.shields = null;      // id -> { amt, max, t, dur, type, decay }
+    this.displace = null;     // 에어본 / 끌어당김 / 넉백
+    this.asSlows = null;      // id -> { pct, t }  공격 속도 감소
+    this.takenAmps = null;    // id -> { pct, t, src, type }  받는 피해 증가
+    this.armorShred = null;   // id -> { pct, t }
+    this.mrShred = null;
+    this.grievousT = 0; this.grievousPct = 0;
+    this.exhaustT = 0;        // 입히는 피해 35% 감소
+    this.stasisT = 0;         // 경직 (무적·행동 불가)
+    this.ghostT = 0;          // 유닛 충돌 무시
+    this.tenacity = 0;
+    this.slowResist = 0;
+    this.hsReceived = 1;      // 받는 회복·보호막 배율
+    this.combatT = -99;       // 마지막으로 피해를 주고받은 시간
+    this.champCombatT = -99;  // 챔피언(연습 규칙 포함)과 마지막으로 전투한 시간
+    this.dynAs = 0; this.dynMsFlat = 0; this.dynMsPct = 0;
+    this.damagedBy = null;    // 영웅 id -> 마지막 피해 시간 (처치 관여 판정)
   }
 
-  // ---------- 상태 효과 (둔화 / 가속 / 보호막 / 에어본) ----------
-  addSlow(id, pct, dur, decay) { (this.slows || (this.slows = {}))[id] = { pct, t: dur, dur, decay }; }
+  // ---------- 상태 효과 ----------
+  addSlow(id, pct, dur, decay) {
+    if (this.isStructure) return;
+    (this.slows || (this.slows = {}))[id] = { pct, t: dur, dur, decay };
+  }
   addHaste(id, pct, dur, decay) { (this.hastes || (this.hastes = {}))[id] = { pct, t: dur, dur, decay }; }
-  addShield(id, amt, dur) { (this.shields || (this.shields = {}))[id] = { amt, t: dur }; }
+  addAsSlow(id, pct, dur) { if (!this.isStructure) (this.asSlows || (this.asSlows = {}))[id] = { pct, t: dur }; }
+  addTakenAmp(id, pct, dur, src, type) { (this.takenAmps || (this.takenAmps = {}))[id] = { pct, t: dur, src: src || null, type: type || null }; }
+  addArmorShred(id, pct, dur) { (this.armorShred || (this.armorShred = {}))[id] = { pct, t: dur }; }
+  addMrShred(id, pct, dur) { (this.mrShred || (this.mrShred = {}))[id] = { pct, t: dur }; }
+  applyGrievous(pct, dur) { this.grievousT = Math.max(this.grievousT, dur); this.grievousPct = Math.max(this.grievousT > dur ? this.grievousPct : 0, pct); }
 
-  shieldTotal() {
+  // opts: { type: 'all' | 'magic' | 'physical', decay }
+  addShield(id, amt, dur, opts = {}) {
+    if (!this.alive || amt <= 0) return 0;
+    amt *= this.hsReceived;
+    (this.shields || (this.shields = {}))[id] = { amt, max: amt, t: dur, dur, type: opts.type || 'all', decay: !!opts.decay };
+    if (this.fxEvent) this.fxEvent('shieldGained', amt, id);
+    return amt;
+  }
+
+  shieldTotal(type) {
     let s = 0;
-    if (this.shields) for (const k in this.shields) s += this.shields[k].amt;
+    if (this.shields) for (const k in this.shields) {
+      const sh = this.shields[k];
+      if (!type || sh.type === 'all' || sh.type === type) s += sh.amt;
+    }
     return s;
   }
 
-  absorbShield(dmg) {
-    for (const k in this.shields) {
-      const s = this.shields[k], take = Math.min(s.amt, dmg);
-      s.amt -= take; dmg -= take;
-      if (s.amt <= 0) delete this.shields[k];
-      if (dmg <= 0) break;
+  absorbShield(dmg, type) {
+    if (!this.shields) return dmg;
+    for (const pass of [0, 1]) {
+      for (const k in this.shields) {
+        const s = this.shields[k];
+        if (pass === 0 ? s.type !== type : s.type !== 'all') continue;
+        const take = Math.min(s.amt, dmg);
+        s.amt -= take; dmg -= take;
+        if (s.amt <= 0.01) delete this.shields[k];
+        if (dmg <= 0) return 0;
+      }
     }
     return dmg;
   }
 
   static effPct(e) { return e.decay ? e.pct * (e.t / e.dur) : e.pct; }
 
-  getMS() {
-    let slow = 0, haste = 0;
+  slowPct() {
+    let slow = 0;
     if (this.slows) for (const k in this.slows) slow = Math.max(slow, Unit.effPct(this.slows[k]));
+    return slow * (1 - (this.slowResist || 0));
+  }
+
+  getMS() {
+    let haste = 0;
     if (this.hastes) for (const k in this.hastes) haste = Math.max(haste, Unit.effPct(this.hastes[k]));
-    return this.ms * (1 + haste) * (1 - slow);
+    return Math.max(0, (this.ms + this.dynMsFlat) * (1 + haste + this.dynMsPct) * (1 - this.slowPct()));
+  }
+
+  asSlowPct() {
+    let s = 0;
+    if (this.asSlows) for (const k in this.asSlows) s = Math.max(s, this.asSlows[k].pct);
+    return s;
+  }
+
+  getAS() { return this.as * (1 - this.asSlowPct()); }
+
+  isImpaired() { return !!this.displace || this.slowPct() > 0 || this.stasisT > 0; }
+
+  heal(amount, src) {
+    if (!this.alive || amount <= 0) return 0;
+    let a = amount * this.hsReceived;
+    if (this.grievousT > 0) a *= 1 - this.grievousPct;
+    const before = this.hp;
+    this.hp = Math.min(this.maxHp, this.hp + a);
+    const gained = this.hp - before;
+    if (this.fxEvent && a > gained + 0.01) this.fxEvent('overheal', a - gained, src);
+    return gained;
+  }
+
+  cleanse() {
+    this.slows = null;
+    this.asSlows = null;
+    this.exhaustT = 0;
+    this.grievousT = 0;
   }
 
   tickStatus(dt) {
-    for (const bag of [this.slows, this.hastes, this.shields]) {
+    for (const bag of [this.slows, this.hastes, this.shields, this.asSlows, this.takenAmps, this.armorShred, this.mrShred]) {
       if (!bag) continue;
-      for (const k in bag) { bag[k].t -= dt; if (bag[k].t <= 0) delete bag[k]; }
+      for (const k in bag) {
+        const e = bag[k];
+        e.t -= dt;
+        if (e.t <= 0) { delete bag[k]; continue; }
+        if (e.decay && e.max) e.amt = Math.min(e.amt, e.max * e.t / e.dur);
+      }
     }
+    if (this.grievousT > 0) this.grievousT -= dt;
+    if (this.exhaustT > 0) this.exhaustT -= dt;
+    if (this.stasisT > 0) this.stasisT -= dt;
+    if (this.ghostT > 0) this.ghostT -= dt;
   }
 
-  knockTo(tx, ty, dur, height) {
-    if (this.isStructure || this.ccImmune || !this.alive) return false;
+  knockTo(tx, ty, dur, height, opts = {}) {
+    if (this.isStructure || this.ccImmune || !this.alive || this.stasisT > 0) return false;
     const p = Nav.isWalkable(tx, ty) ? P(tx, ty) : Nav.nearestWalkablePoint(tx, ty);
-    this.displace = { sx: this.x, sy: this.y, tx: p.x, ty: p.y, t: 0, dur, h: height };
+    this.displace = { sx: this.x, sy: this.y, tx: p.x, ty: p.y, t: 0, dur, h: height, src: opts.src || null, onStep: opts.onStep || null };
     this.cancelWindup();
     return true;
   }
@@ -92,6 +175,7 @@ class Unit {
     const k = Math.min(1, d.t / d.dur), e = 1 - (1 - k) * (1 - k);
     this.x = lerp(d.sx, d.tx, e);
     this.y = lerp(d.sy, d.ty, e);
+    if (d.onStep) d.onStep(this);
     if (k >= 1) this.displace = null;
     return true;
   }
@@ -101,7 +185,7 @@ class Unit {
     return d ? Math.sin(Math.min(1, d.t / d.dur) * Math.PI) * d.h : 0;
   }
 
-  getAS() { return this.as; }
+  getBaseAS() { return this.getAS(); }
   windupTime() { return Math.min(0.5, this.windupRatio / this.getAS()); }
 
   edgeDist(t) { return dist(this.x, this.y, t.x, t.y) - this.radius - t.radius; }
@@ -126,6 +210,7 @@ class Unit {
           this.windup = -1;
           this.attackAnim = 0.15;
           this.lastAggroTime = this.game.time;
+          if (this.onAttackLaunch) this.onAttackLaunch(t);
           this.fireAttack(t);
         }
       }
@@ -165,7 +250,7 @@ class Unit {
   onDamaged(src, amount) {}
 
   regen(dt) {
-    if (this.hp < this.maxHp && this.hpRegen > 0) this.hp = Math.min(this.maxHp, this.hp + this.hpRegen * dt);
+    if (this.hp < this.maxHp && this.hpRegen > 0) this.heal(this.hpRegen * dt, 'regen');
   }
 
   // 이동: 구조물 주변은 미끄러지듯 돌아가고, 벽은 축별로 미끄러짐
@@ -224,6 +309,7 @@ class Minion extends Unit {
     this.towerPct = s.towerPct;
     this.aggroRange = 650;
     this.retarget = Math.random() * 0.3;
+    this.bonusResist = 0;     // 선체파괴자 '승선 부대'
   }
 
   projStyle() {
@@ -309,7 +395,7 @@ class Minion extends Unit {
     const ox = this.x, oy = this.y;
     this.moveToward(tx, ty, dt);
     const moved = dist(ox, oy, this.x, this.y);
-    this.stuckT = moved < this.ms * dt * 0.25 ? (this.stuckT || 0) + dt : 0;
+    this.stuckT = moved < this.getMS() * dt * 0.25 ? (this.stuckT || 0) + dt : 0;
     if (this.stuckT > 0.6) {
       this.stuckT = 0;
       this.navPath = Nav.findPath(this.x, this.y, tx, ty);
@@ -332,10 +418,12 @@ class Monster extends Unit {
     this.camp = camp;
     this.home = P(x, y);
     this.gold = s.gold; this.xp = s.xp;
+    this.large = LARGE_MONSTERS.has(mtype);
+    this.epic = EPIC_MONSTERS.has(mtype);
     this.aggro = null;
     this.resetting = false;
     this.facing = Math.random() * Math.PI * 2;
-    if (mtype === 'dragon' || mtype === 'baron') {
+    if (this.epic) {
       const mins = game.time / 60;
       this.maxHp = this.hp = Math.round(s.hp * (1 + mins * 0.03));
       this.ad = s.ad * (1 + mins * 0.02);
@@ -344,11 +432,12 @@ class Monster extends Unit {
 
   projStyle() { return { color: this.stats.color, size: this.mtype === 'baron' ? 14 : 10 }; }
 
-  isValidTarget(t) { return t && t.alive && t.targetable && t.team !== this.team; }
+  isValidTarget(t) { return t && t.alive && t.targetable && t.team !== this.team && t.stasisT <= 0; }
 
   onDamaged(src) {
     if (!src || src.team === TEAM.NEUTRAL || this.resetting) return;
-    if (!this.aggro) this.camp.aggroAll(src);
+    this.camp.lastHit = this.game.time;
+    if (!this.aggro) this.camp.aggroAll(src.owner || src);
   }
 
   startReset() {
@@ -367,8 +456,10 @@ class Monster extends Unit {
     }
     const a = this.aggro;
     if (a) {
-      const leash = this.mtype === 'baron' || this.mtype === 'dragon' ? 900 : 750;
-      const bored = this.game.time - this.lastDamagedTime > 6 && !this.inRange(a);
+      const leash = this.epic ? 900 : 750;
+      // 캠프 전체 기준으로 6초 동안 맞지 않고 대상이 사거리 밖이면 초기화 (같은 캠프의 안 맞은 몬스터가 바로 초기화하지 않도록)
+      const lastHit = Math.max(this.lastDamagedTime, this.camp.lastHit ?? -99);
+      const bored = this.game.time - lastHit > 6 && !this.inRange(a);
       if (!this.isValidTarget(a) || dist(this.x, this.y, this.home.x, this.home.y) > leash || bored) { this.startReset(); return; }
       if (this.inRange(a)) this.tryAttack(a);
       else if (this.windup < 0 && this.ms > 0) this.moveToward(a.x, a.y, dt);
@@ -416,6 +507,7 @@ class Camp {
   }
 
   aggroAll(src) {
+    if (!src || !src.alive || src.kind === 'ward') return;
     for (const m of this.monsters) if (m.alive && !m.resetting && !m.aggro) m.aggro = src;
   }
 }
@@ -449,5 +541,43 @@ class Projectile {
     }
     this.x += (tx - this.x) / d * step;
     this.y += (ty - this.y) / d * step;
+  }
+}
+
+// 직선으로 날아가 처음 맞은 적에게 효과를 주는 스킬 투사체 (리 신 Q 등)
+class SkillShot {
+  constructor(game, owner, sx, sy, tx, ty, o) {
+    this.game = game;
+    this.owner = owner;
+    this.x = sx; this.y = sy;
+    const d = dist(sx, sy, tx, ty) || 1;
+    this.dx = (tx - sx) / d; this.dy = (ty - sy) / d;
+    this.range = o.range; this.speed = o.speed; this.width = o.width;
+    this.traveled = 0;
+    this.onHit = o.onHit; this.onEnd = o.onEnd || null;
+    this.color = o.color || '#fff';
+    this.alive = true;
+    this.trail = [];
+  }
+
+  update(dt) {
+    const step = Math.min(this.speed * dt, this.range - this.traveled);
+    const nx = this.x + this.dx * step, ny = this.y + this.dy * step;
+    let best = null, bd = Infinity;
+    for (const u of this.game.enemiesNearSegment(this.owner.team, this.x, this.y, nx, ny, this.width)) {
+      const d = dist(this.x, this.y, u.x, u.y);
+      if (d < bd) { bd = d; best = u; }
+    }
+    this.trail.push(P(this.x, this.y));
+    if (this.trail.length > 6) this.trail.shift();
+    if (best) {
+      this.alive = false;
+      this.x = best.x; this.y = best.y;
+      this.onHit(best);
+      return;
+    }
+    this.x = nx; this.y = ny;
+    this.traveled += step;
+    if (this.traveled >= this.range - 0.5) { this.alive = false; if (this.onEnd) this.onEnd(); }
   }
 }

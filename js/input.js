@@ -5,7 +5,10 @@ const Input = {
   keys: {},
   rightHeld: false,
   rightRepeat: 0,
+  leftHeld: false,     // WASD: 좌클릭 공격 유지
+  leftRepeat: 0,
   amoveArmed: false,
+  targeting: null,     // { type: 'teleport', slot }
   hover: null,
   minimapDrag: false,
   bound: false,
@@ -13,7 +16,10 @@ const Input = {
   attach(game) {
     this.game = game;
     this.amoveArmed = false;
+    this.targeting = null;
     this.rightHeld = false;
+    this.leftHeld = false;
+    this.keys = {};
     this.hover = null;
     if (this.bound) return;
     this.bound = true;
@@ -24,12 +30,12 @@ const Input = {
     window.addEventListener('contextmenu', e => e.preventDefault());
     document.addEventListener('mousemove', e => { this.mouse.sx = e.clientX; this.mouse.sy = e.clientY; this.mouse.inside = true; });
     document.addEventListener('mouseleave', () => { this.mouse.inside = false; });
-    window.addEventListener('blur', () => { this.keys = {}; this.rightHeld = false; this.mouse.inside = false; });
+    window.addEventListener('blur', () => { this.keys = {}; this.rightHeld = false; this.leftHeld = false; this.mouse.inside = false; });
 
     canvas.addEventListener('mousedown', e => this.onCanvasDown(e));
     window.addEventListener('mouseup', e => {
       if (e.button === 2) this.rightHeld = false;
-      if (e.button === 0) this.minimapDrag = false;
+      if (e.button === 0) { this.minimapDrag = false; this.leftHeld = false; }
     });
     canvas.addEventListener('wheel', e => {
       e.preventDefault();
@@ -42,8 +48,9 @@ const Input = {
       e.preventDefault();
       if (!this.game) return;
       const p = this.minimapToWorld(e);
+      if (this.targeting && e.button === 0) { this.resolveTargeting(p.x, p.y, 700); return; }
       if (e.button === 0) { this.minimapDrag = true; this.game.cam.locked = false; this.game.cam.x = p.x; this.game.cam.y = p.y; }
-      else if (e.button === 2 && this.running()) { this.game.player.orderMove(p.x, p.y); }
+      else if (e.button === 2 && this.running()) { this.cancelTargeting(); this.game.player.orderMove(p.x, p.y); }
     });
     mm.addEventListener('mousemove', e => {
       if (!this.minimapDrag || !this.game) return;
@@ -56,6 +63,24 @@ const Input = {
   },
 
   running() { return this.game && !this.game.paused && !this.game.over; },
+
+  beginTargeting(t) { this.targeting = t; this.amoveArmed = false; },
+  cancelTargeting() { this.targeting = null; },
+
+  // 순간이동 대상: 클릭 지점 근처의 아군 포탑·미니언·와드
+  resolveTargeting(wx, wy, radius) {
+    const g = this.game, pl = g.player, t = this.targeting;
+    this.targeting = null;
+    if (!t || t.type !== 'teleport') return;
+    let best = null, bd = radius;
+    for (const u of g.units.concat(g.wards)) {
+      if (!SPELL_DEFS.SummonerTeleport.validTarget(pl, u)) continue;
+      const d = dist(wx, wy, u.x, u.y) - (u.radius || 0);
+      if (d < bd) { bd = d; best = u; }
+    }
+    if (!best) { UI.hint('근처에 순간이동할 아군 대상이 없습니다'); return; }
+    Spells.teleport(pl, t.slot, best);
+  },
 
   minimapToWorld(e) {
     const r = e.target.getBoundingClientRect();
@@ -71,7 +96,23 @@ const Input = {
     if (!this.running()) return;
     const g = this.game, pl = g.player;
     const w = this.screenToWorld(e.clientX, e.clientY);
-    const hover = g.unitAt(w.x, w.y, pl.team);
+    const hover = g.unitAt(w.x, w.y, pl.team, { wards: true });
+    if (this.targeting) {
+      if (e.button === 0) this.resolveTargeting(w.x, w.y, 250);
+      else this.cancelTargeting();
+      return;
+    }
+    if (Controls.wasd()) {
+      if (e.button === 2) {
+        if (pl.abilityDefs) pl.castAbility('Q', w.x, w.y, hover);
+        else UI.flashLocked('Q');
+      } else if (e.button === 0) {
+        this.leftHeld = true;
+        this.leftRepeat = 0.15;
+        this.wasdAttack(w, hover, true);
+      }
+      return;
+    }
     if (e.button === 2) {
       this.amoveArmed = false;
       this.rightHeld = true;
@@ -80,18 +121,45 @@ const Input = {
     } else if (e.button === 0) {
       if (this.amoveArmed) {
         this.amoveArmed = false;
-        if (hover && hover.team !== pl.team) pl.orderAttack(hover);
+        if (hover && hover.team !== pl.team && hover.kind !== 'ward') pl.orderAttack(hover);
         else pl.orderAttackMove(w.x, w.y);
         g.addEffect({ type: 'click', x: w.x, y: w.y, color: '#ff4a4a', dur: 0.4 });
       } else {
-        g.selected = hover;
+        g.selected = hover && hover.kind !== 'ward' ? hover : null;
       }
     }
   },
 
+  // WASD 좌클릭: 커서 아래 적 → 없으면 커서 근처(220)의 가장 가까운 적을 공격 대상으로 지정
+  wasdTarget(w, hover) {
+    const g = this.game, pl = g.player;
+    const ok = u => u && u.alive && u.kind !== 'ward' && u.team !== pl.team && pl.isValidTarget(u);
+    if (ok(hover)) return hover;
+    let best = null, bd = 220;
+    for (const u of g.units) {
+      if (!ok(u)) continue;
+      const d = dist(w.x, w.y, u.x, u.y) - u.radius;
+      if (d < bd) { bd = d; best = u; }
+    }
+    return best;
+  },
+
+  wasdAttack(w, hover, showFx) {
+    const g = this.game, pl = g.player;
+    const t = this.wasdTarget(w, hover);
+    if (!t) {
+      if (showFx) g.selected = hover && hover.kind !== 'ward' ? hover : null;
+      return;
+    }
+    const same = pl.cmd && pl.cmd.type === 'attack' && pl.cmd.target === t;
+    pl.orderAttack(t);
+    if (pl.cmd && pl.cmd.type === 'attack') pl.cmd.clicks = 1;
+    if (showFx && !same) g.addEffect({ type: 'targetMark', target: t, dur: 0.35 });
+  },
+
   issueRight(w, hover, showFx) {
     const g = this.game, pl = g.player;
-    if (hover && hover.team !== pl.team && g.isVisible(pl.team, hover)) {
+    if (hover && hover.kind !== 'ward' && hover.team !== pl.team && g.isVisible(pl.team, hover)) {
       pl.orderAttack(hover);
       if (showFx) g.addEffect({ type: 'targetMark', target: hover, dur: 0.35 });
     } else {
@@ -104,9 +172,12 @@ const Input = {
   onKeyDown(e) {
     const g = this.game;
     if (!g) return;
+    if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
     if (e.code === 'Tab' || e.code === 'Space') e.preventDefault();
     if (e.code === 'Escape') {
-      if (UI.shopOpen) UI.toggleShop(false);
+      if (this.targeting) this.cancelTargeting();
+      else if (UI.shopOpen) UI.toggleShop(false);
+      else if (UI.spellbookOpen) UI.toggleSpellbook(false);
       else if (this.amoveArmed) this.amoveArmed = false;
       else if (!g.over) UI.setPaused(!g.paused);
       return;
@@ -116,24 +187,78 @@ const Input = {
     this.keys[e.code] = true;
     const pl = g.player;
     const w = this.screenToWorld(this.mouse.sx, this.mouse.sy);
+    const hover = this.hover;
+    if (Controls.wasd()) { this.onKeyDownWasd(e, pl, w, hover); return; }
     switch (e.code) {
-      case 'KeyA': this.amoveArmed = true; break;
+      case 'KeyA': this.amoveArmed = true; this.targeting = null; break;
       case 'KeyS': pl.orderStop(); break;
       case 'KeyB': pl.startRecall(); break;
       case 'KeyP': UI.toggleShop(); break;
       case 'KeyY': g.cam.locked = !g.cam.locked; UI.announce('카메라 고정: ' + (g.cam.locked ? '켜짐' : '꺼짐'), 'info'); break;
-      case 'KeyD': pl.castHeal(); break;
-      case 'KeyF': pl.castFlash(w.x, w.y); break;
+      case 'KeyD': pl.castSpell(0, w.x, w.y, hover); break;
+      case 'KeyF': pl.castSpell(1, w.x, w.y, hover); break;
       case 'KeyQ': case 'KeyW': case 'KeyE': case 'KeyR': {
         const key = e.code.slice(3);
         if (!pl.abilityDefs) UI.flashLocked(key);
         else if (e.shiftKey) pl.levelAbility(key);
-        else pl.castAbility(key, w.x, w.y, this.hover);
+        else pl.castAbility(key, w.x, w.y, hover);
         break;
       }
       case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Digit5': case 'Digit6':
-        pl.useItem(Number(e.code.slice(5)) - 1); break;
+        pl.useItem(Number(e.code.slice(5)) - 1, w.x, w.y, hover); break;
+      case 'Digit7': pl.useItem('trinket', w.x, w.y, hover); break;
+      case 'Digit8':
+        if (pl.questSlot) pl.useItem('quest', w.x, w.y, hover);
+        else if (pl.spells[2]) pl.castSpell(2, w.x, w.y, hover);
+        break;
     }
+  },
+
+  // WASD 배치: 이동 W/A/S/D · 공격 좌클릭 · 스킬 우클릭/Shift/E/R · 주문 Q/F · 스킬 레벨 Alt+1~4
+  onKeyDownWasd(e, pl, w, hover) {
+    const g = this.game;
+    if (e.altKey && /^Digit[1-4]$/.test(e.code)) {
+      e.preventDefault();
+      if (pl.abilityDefs) pl.levelAbility('QWER'[Number(e.code.slice(5)) - 1]);
+      return;
+    }
+    switch (e.code) {
+      case 'ShiftLeft': case 'ShiftRight':
+        if (pl.abilityDefs) pl.castAbility('W', w.x, w.y, hover); else UI.flashLocked('W');
+        break;
+      case 'KeyE': case 'KeyR': {
+        const key = e.code.slice(3);
+        if (pl.abilityDefs) pl.castAbility(key, w.x, w.y, hover); else UI.flashLocked(key);
+        break;
+      }
+      case 'KeyQ': pl.castSpell(0, w.x, w.y, hover); break;
+      case 'KeyF': pl.castSpell(1, w.x, w.y, hover); break;
+      case 'KeyC': this.cancelTargeting(); break;
+      case 'KeyB': pl.startRecall(); break;
+      case 'KeyP': UI.toggleShop(); break;
+      case 'KeyY': g.cam.locked = !g.cam.locked; UI.announce('카메라 고정: ' + (g.cam.locked ? '켜짐' : '꺼짐'), 'info'); break;
+      case 'Digit1': case 'Digit2': case 'Digit3': case 'Digit4': case 'Digit5': case 'Digit6':
+        pl.useItem(Number(e.code.slice(5)) - 1, w.x, w.y, hover); break;
+      case 'Digit7': pl.useItem('trinket', w.x, w.y, hover); break;
+      case 'Digit8':
+        if (pl.questSlot) pl.useItem('quest', w.x, w.y, hover);
+        else if (pl.spells[2]) pl.castSpell(2, w.x, w.y, hover);
+        break;
+    }
+  },
+
+  // 누르고 있는 WASD 키로 이동 방향 계산 (45도 보정 시 W가 화면 오른쪽 위 = 적 기지 방향)
+  wasdVector() {
+    const k = this.keys;
+    let x = (k.KeyD ? 1 : 0) - (k.KeyA ? 1 : 0);
+    let y = (k.KeyS ? 1 : 0) - (k.KeyW ? 1 : 0);
+    if (!x && !y) return { x: 0, y: 0 };
+    if (Controls.angle45) {
+      const c = Math.SQRT1_2;
+      [x, y] = [x * c - y * c, x * c + y * c];
+    }
+    const l = Math.hypot(x, y);
+    return { x: x / l, y: y / l };
   },
 
   update(dt) {
@@ -141,6 +266,14 @@ const Input = {
     if (!g) return;
     const c = g.cam, pl = g.player;
     const W = window.innerWidth, H = window.innerHeight;
+
+    if (Controls.wasd() && this.running()) {
+      pl.moveInput = this.wasdVector();
+      pl.attackHeld = this.leftHeld;
+    } else {
+      pl.moveInput = { x: 0, y: 0 };
+      pl.attackHeld = false;
+    }
 
     // 카메라
     if (this.keys.Space || (c.locked && !this.minimapDrag)) { c.x = pl.x; c.y = pl.y; }
@@ -160,13 +293,19 @@ const Input = {
     }
     c.x = clamp(c.x, 0, M); c.y = clamp(c.y, 0, M);
 
-    // 마우스 아래 유닛
+    // 마우스 아래 유닛 (아군 와드 포함 — 리 신 W 등)
     const w = this.screenToWorld(this.mouse.sx, this.mouse.sy);
     this.mouse.wx = w.x; this.mouse.wy = w.y;
-    this.hover = this.running() ? g.unitAt(w.x, w.y, pl.team) : null;
+    this.hover = this.running() ? g.unitAt(w.x, w.y, pl.team, { wards: true }) : null;
+
+    // WASD: 좌클릭 누르고 있으면 커서 근처 대상으로 계속 공격
+    if (Controls.wasd() && this.leftHeld && this.running()) {
+      this.leftRepeat -= dt;
+      if (this.leftRepeat <= 0) { this.leftRepeat = 0.15; this.wasdAttack(w, this.hover, false); }
+    }
 
     // 우클릭 누르고 있으면 계속 이동
-    if (this.rightHeld && this.running()) {
+    if (!Controls.wasd() && this.rightHeld && this.running()) {
       this.rightRepeat -= dt;
       if (this.rightRepeat <= 0) {
         this.rightRepeat = 0.15;
@@ -176,7 +315,7 @@ const Input = {
     }
 
     const canvas = document.getElementById('game');
-    canvas.classList.toggle('attackCursor', this.amoveArmed);
-    canvas.classList.toggle('enemyHover', !this.amoveArmed && !!this.hover && this.hover.team !== pl.team);
+    canvas.classList.toggle('attackCursor', this.amoveArmed || !!this.targeting);
+    canvas.classList.toggle('enemyHover', !this.amoveArmed && !!this.hover && this.hover.team !== pl.team && this.hover.kind !== 'ward');
   },
 };
