@@ -46,6 +46,7 @@ class Unit {
     this.grievousT = 0; this.grievousPct = 0;
     this.exhaustT = 0;        // 입히는 피해 35% 감소
     this.stasisT = 0;         // 경직 (무적·행동 불가)
+    this.stunT = 0;           // 기절 (이동·공격·스킬 불가)
     this.ghostT = 0;          // 유닛 충돌 무시
     this.tenacity = 0;
     this.slowResist = 0;
@@ -123,7 +124,17 @@ class Unit {
 
   getAS() { return this.as * (1 - this.asSlowPct()); }
 
-  isImpaired() { return !!this.displace || this.slowPct() > 0 || this.stasisT > 0; }
+  isImpaired() { return !!this.displace || this.slowPct() > 0 || this.stasisT > 0 || this.stunT > 0; }
+
+  // 기절: 강인함만큼 짧아지며 용·공허의 군주·구조물에는 걸리지 않습니다.
+  addStun(dur) {
+    if (this.isStructure || this.ccImmune || !this.alive || this.stasisT > 0) return 0;
+    const d = dur * (1 - clamp(this.tenacity || 0, 0, 0.8));
+    this.stunT = Math.max(this.stunT, d);
+    this.cancelWindup();
+    if (this.cancelChannel) this.cancelChannel();
+    return d;
+  }
 
   heal(amount, src) {
     if (!this.alive || amount <= 0) return 0;
@@ -141,6 +152,7 @@ class Unit {
     this.asSlows = null;
     this.exhaustT = 0;
     this.grievousT = 0;
+    this.stunT = 0;
   }
 
   tickStatus(dt) {
@@ -156,6 +168,7 @@ class Unit {
     if (this.grievousT > 0) this.grievousT -= dt;
     if (this.exhaustT > 0) this.exhaustT -= dt;
     if (this.stasisT > 0) this.stasisT -= dt;
+    if (this.stunT > 0) this.stunT -= dt;
     if (this.ghostT > 0) this.ghostT -= dt;
   }
 
@@ -167,10 +180,10 @@ class Unit {
     return true;
   }
 
-  // 에어본 중이면 true (행동 불가)
+  // 에어본·기절 중이면 true (행동 불가)
   updateCC(dt) {
     const d = this.displace;
-    if (!d) return false;
+    if (!d) return this.stunT > 0;
     d.t += dt;
     const k = Math.min(1, d.t / d.dur), e = 1 - (1 - k) * (1 - k);
     this.x = lerp(d.sx, d.tx, e);
@@ -557,6 +570,7 @@ class SkillShot {
     this.dx = (tx - sx) / d; this.dy = (ty - sy) / d;
     this.range = o.range; this.speed = o.speed; this.width = o.width;
     this.traveled = 0;
+    this.filter = o.filter || null;   // 맞힐 대상 제한 (예: 챔피언만)
     this.onHit = o.onHit; this.onEnd = o.onEnd || null;
     this.color = o.color || '#fff';
     this.alive = true;
@@ -568,6 +582,7 @@ class SkillShot {
     const nx = this.x + this.dx * step, ny = this.y + this.dy * step;
     let best = null, bd = Infinity;
     for (const u of this.game.enemiesNearSegment(this.owner.team, this.x, this.y, nx, ny, this.width)) {
+      if (this.filter && !this.filter(u)) continue;
       const d = dist(this.x, this.y, u.x, u.y);
       if (d < bd) { bd = d; best = u; }
     }

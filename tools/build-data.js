@@ -109,7 +109,7 @@ async function main() {
   lines.push('  },');
   lines.push('  runes: ' + JSON.stringify(runes) + ',');
   lines.push('  spells: ' + JSON.stringify(spells) + ',');
-  lines.push('  champions: ' + JSON.stringify({ Orianna: champions.Orianna, LeeSin: champions.LeeSin }) + ',');
+  lines.push('  champions: ' + JSON.stringify({ Orianna: champions.Orianna, LeeSin: champions.LeeSin, Ashe: champions.Ashe }) + ',');
   lines.push('};');
   const out = path.join(__dirname, '..', 'js', 'data', 'lol_data.js');
   fs.writeFileSync(out, lines.join('\n') + '\n');

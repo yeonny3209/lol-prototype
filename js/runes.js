@@ -21,6 +21,7 @@ const SHARD_ROW_NAMES = ['공격', '유연', '방어'];
 const RECOMMENDED_RUNES = {
   orianna: { primary: 8200, keys: [8229, 8226, 8210, 8237], secondary: 8300, sec: [8345, 8347], shards: [5008, 5008, 5001] },
   leesin: { primary: 8000, keys: [8010, 9111, 9105, 8014], secondary: 8100, sec: [8143, 8106], shards: [5005, 5008, 5001] },
+  ashe: { primary: 8000, keys: [8008, 9111, 9104, 8014], secondary: 8100, sec: [8139, 8135], shards: [5005, 5008, 5011] },
   basic: { primary: 8000, keys: [8008, 9111, 9104, 8014], secondary: 8400, sec: [8444, 8453], shards: [5005, 5008, 5011] },
 };
 
@@ -49,7 +50,7 @@ RUNE_FX[8008] = {
   attack(h, e, t) { if (champLike(t)) { e.st.n = Math.min(6, (h.game.time < (e.st.until || 0) ? e.st.n : 0) + 1); e.st.until = h.game.time + 6; } },
   tick(h, e) { if (h.game.time < (e.st.until || 0)) h.dynAs += e.st.n * (h.ranged ? 0.04 : 0.06); else e.st.n = 0; },
   preHit(h, e, t, ctx) {
-    if (ctx.onHitOnly || e.st.n < 6 || !champLike(t)) return;
+    if (ctx.onHitOnly || (e.st.n || 0) < 6 || !champLike(t)) return;
     const base = h.ranged ? lvlScale(h, 6, 24) : lvlScale(h, 9, 30);
     ctx.bonus.push({ amt: base * (1 + h.asBonus + h.dynAs), type: adaptiveType(h) });
   },

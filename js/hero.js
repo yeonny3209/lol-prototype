@@ -284,7 +284,7 @@ class Hero extends Unit {
 
   castAbility(key, wx, wy, hover) {
     const defs = this.abilityDefs;
-    if (!defs || !defs[key] || !this.alive || this.stasisT > 0 || this.displace || this.channel) return false;
+    if (!defs || !defs[key] || !this.alive || this.stasisT > 0 || this.stunT > 0 || this.displace || this.channel) return false;
     const a = this.abilities[key], def = defs[key];
     if (a.lvl <= 0) { this.hint(def.name + ': 아직 배우지 않았습니다 (' + Controls.levelKey(key) + ')'); return false; }
     const recast = this.abilityRecast ? this.abilityRecast(key) : null;
@@ -311,7 +311,7 @@ class Hero extends Unit {
   onDeathHook() {}
 
   // ---------- 명령 ----------
-  busy() { return !this.alive || this.stasisT > 0 || this.displace || this.dash; }
+  busy() { return !this.alive || this.stasisT > 0 || this.stunT > 0 || this.displace || this.dash; }
 
   orderMove(x, y) {
     if (!this.alive) return;
@@ -468,7 +468,7 @@ class Hero extends Unit {
     this.respawnTimer = 6 + this.level * 2.2 + this.game.time / 60 * 0.4;
     this.cmd = null; this.path = []; this.recall = null; this.windup = -1; this.dash = null; this.channel = null;
     this.hots = [];
-    this.shields = null; this.slows = null; this.hastes = null; this.displace = null; this.asSlows = null;
+    this.shields = null; this.slows = null; this.hastes = null; this.displace = null; this.asSlows = null; this.stunT = 0;
     for (const id of ['red', 'blue', 'baron', 'haste']) delete this.buffs[id];
     this.recalcStats();
   }

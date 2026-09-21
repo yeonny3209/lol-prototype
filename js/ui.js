@@ -2,7 +2,7 @@
 const $ = id => document.getElementById(id);
 const ABILITY_KEYS = ['Q', 'W', 'E', 'R'];
 const ROLE_ORDER = ['top', 'jungle', 'mid', 'bot', 'support'];
-const PORTRAITS = { orianna: 'Orianna', leesin: 'LeeSin' };
+const PORTRAITS = { orianna: 'Orianna', leesin: 'LeeSin', ashe: 'Ashe' };
 const ITEM_SLOT_ORDER = [0, 1, 2, 'trinket', 3, 4, 5, 'quest'];
 const ITEM_SLOT_KEYS = ['1', '2', '3', '7', '4', '5', '6', '8'];
 

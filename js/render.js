@@ -239,6 +239,13 @@ const Renderer = {
     if (u.hitFlash > 0 && u.alive && !u.isStructure) {
       this.circle(ctx, u.x, u.y, u.radius, 'rgba(255,255,255,' + (u.hitFlash * 4).toFixed(2) + ')');
     }
+    // 기절: 머리 위로 도는 별
+    if (u.stunT > 0 && u.alive) {
+      for (let i = 0; i < 3; i++) {
+        const a = game.time * 7 + i * TAU / 3;
+        this.circle(ctx, u.x + Math.cos(a) * u.radius * 0.85, u.y - u.radius - 12 + Math.sin(a) * 4, 3.5, '#ffe14a', '#7a5c00', 1);
+      }
+    }
     if (u.shields && u.alive && u.shieldTotal() > 0) {
       const pulse = 0.5 + 0.15 * Math.sin(game.time * 5);
       this.circle(ctx, u.x, u.y, u.radius + 14, 'rgba(255,240,200,0.14)', 'rgba(255,235,170,' + pulse.toFixed(2) + ')', 3);
@@ -571,6 +578,7 @@ const Renderer = {
     const pt = game.player.team;
     for (const w of game.wards) {
       if (w.team !== pt) continue;
+      if (w.type === 'hawk') { this.drawHawk(ctx, w, game); continue; }
       const col = w.type === 'control' ? '#ff5a5a' : w.type === 'farsight' ? '#6ab8ff' : '#ffd84a';
       ctx.fillStyle = 'rgba(0,0,0,0.35)';
       ctx.beginPath(); ctx.ellipse(w.x, w.y + 8, 16, 7, 0, 0, TAU); ctx.fill();
@@ -583,6 +591,23 @@ const Renderer = {
         ctx.beginPath(); ctx.arc(w.x, w.y - 34, 15, -Math.PI / 2, -Math.PI / 2 + TAU * w.t / w.maxT); ctx.stroke();
       }
     }
+  },
+
+  // 애쉬 E: 날아가는 매
+  drawHawk(ctx, w, game) {
+    const flap = Math.sin(game.time * 14) * 0.5;
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath(); ctx.ellipse(w.x, w.y + 14, 10, 4, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#cfe8ff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(w.x, w.y - 8);
+      ctx.quadraticCurveTo(w.x + s * 12, w.y - 14 - flap * 8, w.x + s * 20, w.y - 6 + flap * 6);
+      ctx.stroke();
+    }
+    this.circle(ctx, w.x, w.y - 8, 5, '#9fe6ff', '#2a4d6b', 2);
+    ctx.strokeStyle = 'rgba(159,230,255,0.25)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(w.x, w.y, 42 + Math.sin(game.time * 4) * 4, 0, TAU); ctx.stroke();
   },
 
   drawSkillShots(ctx, game) {

@@ -177,6 +177,13 @@ class Game {
     return true;
   }
 
+  applyStun(src, t, dur) {
+    if (!t.alive || !t.addStun) return 0;
+    const d = t.addStun(dur);
+    if (d > 0 && src && src.fxEvent && champLike(t)) src.fxEvent('impairApplied', t, 'immobilize');
+    return d;
+  }
+
   // ---------- 업데이트 ----------
   update(dt) {
     if (this.over) {
