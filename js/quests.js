@@ -114,13 +114,24 @@ const PET_FX = {
   },
 };
 
+// 공허 유충 처치 보상 '공허의 손길': 구조물에 주는 피해에 중첩(최대 3)당 고정 피해 추가.
+// 실제 롤에는 '공허 유충 소환' 등 더 복잡한 효과가 있지만, 이 프로토타입에서는 단순화했습니다.
+const VOID_TOUCH_FX = {
+  damageDealt(h, e, t, dealt, opts) {
+    if (opts.proc || !t.isStructure || !(h.voidStacks > 0)) return;
+    h.game.dealDamage(h, t, 15 * h.voidStacks, { type: 'true', proc: true, silent: true });
+  },
+};
+
 const Quests = {
   init(game, h) {
     const role = QUEST_INFO[h.role] ? h.role : 'mid';
     h.quest = { role, info: QUEST_INFO[role], pts: 0, need: QUEST_INFO[role].need || 1, treats: 0, done: false };
     h.questRewards = {};
     h.smiteTier = 0;
+    h.voidStacks = 0;
     h.addExtraFx('questTracker', QUEST_TRACKER, {});
+    h.addExtraFx('voidTouch', VOID_TOUCH_FX, {});
   },
 
   addTreats(h, n) {

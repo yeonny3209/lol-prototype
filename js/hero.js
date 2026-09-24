@@ -98,7 +98,7 @@ class Hero extends Unit {
     const buff = id => this.buffs[id];
     if (buff('blue')) { S.hp5 += 6; S.mp5 += 5; S.ah += 10; S.msPct += 0.08; }
     if (buff('red')) S.ad += 15;
-    if (buff('baron')) { S.ad += 40; S.ap += 40; }
+    if (buff('baron')) { S.ad += 45; S.ap += 45; }   // 정확한 수치는 공개되지 않아 추정값입니다
     if (buff('haste')) S.msPct += 0.3;
     if (buff('elixirIron')) { S.hp += 300; S.tenacity += 0.25; }
     if (buff('elixirSorcery')) { S.ap += 50; S.baseManaRegenPct += 0.15; }

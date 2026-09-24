@@ -586,6 +586,24 @@ class Game {
           if (killerHero === this.player) this.announce(BUFF_INFO[b].name + ' 획득!', 'good');
         }
       }
+      if (t.kind === 'monster' && t.mtype === 'herald' && killerHero) {
+        if (Items.grantFree(killerHero, 'heraldEye', 1) && killerHero === this.player) this.announce('전령의 눈을 얻었습니다! (사용: 적 구조물 근처에서)', 'good');
+      }
+      if (t.kind === 'monster' && t.mtype === 'voidgrub' && killerHero) {
+        for (const h of this.heroes) if (h.team === killerHero.team) h.voidStacks = Math.min(3, (h.voidStacks || 0) + 1);
+        if (killerHero === this.player) this.announce('공허의 손길 중첩! (' + killerHero.voidStacks + '/3)', 'good');
+      }
+      if (t.kind === 'monster' && t.mtype === 'crab' && killerHero) {
+        const wv = new Ward(this, { team: killerHero.team }, t.x, t.y, 'shrine', 90);
+        wv.sight = 525;
+        this.wards.push(wv);
+        this.addEffect({ type: 'pulse', x: t.x, y: t.y, r: 90, color: '#8ff0ff', dur: 0.6 });
+        // 속도의 신단: 90초 동안, 최근 5초 안에 공방이 없던 아군이 안에 들어오면 이동 속도 30%를 잠깐 얻습니다
+        this.addZone({
+          x: t.x, y: t.y, r: 400, dur: 90, team: killerHero.team, key: 'scuttleSpeed',
+          onTick: z => { for (const h of this.heroes) if (h.team === z.team && h.alive && !h.inCombat(5) && dist(h.x, h.y, z.x, z.y) <= z.r) h.addHaste('scuttleSpeed', 0.3, 1.5, false); },
+        });
+      }
       return;
     }
 

@@ -449,7 +449,10 @@ class Monster extends Unit {
   isValidTarget(t) { return t && t.alive && t.targetable && t.team !== this.team && t.stasisT <= 0; }
 
   onDamaged(src) {
-    if (!src || src.team === TEAM.NEUTRAL || this.resetting) return;
+    if (!src || src.team === TEAM.NEUTRAL) return;
+    // 바위게는 반격하지 않고 때린 쪽 반대 방향으로 도망만 갑니다
+    if (this.mtype === 'crab') { this.fleeFrom = P(src.x, src.y); this.fleeT = 5; return; }
+    if (this.resetting) return;
     this.camp.lastHit = this.game.time;
     if (!this.aggro) this.camp.aggroAll(src.owner || src);
   }
@@ -458,8 +461,25 @@ class Monster extends Unit {
     for (const m of this.camp.monsters) { if (m.alive) { m.aggro = null; m.resetting = true; m.cancelWindup(); } }
   }
 
+  // 바위게 전용: 공격받으면 5초 동안 반대쪽으로 도망칩니다 (반격 없음)
+  updateCrab(dt) {
+    this.moving = false;
+    if (this.hitFlash > 0) this.hitFlash -= dt;
+    if (this.fleeT > 0) {
+      this.fleeT -= dt;
+      const dx = this.x - this.fleeFrom.x, dy = this.y - this.fleeFrom.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      let tx = this.x + dx / d * 220, ty = this.y + dy / d * 220;
+      if (!Nav.isWalkable(tx, ty)) { const p = Nav.nearestWalkablePoint(tx, ty); tx = p.x; ty = p.y; }
+      this.moveToward(tx, ty, dt, 255);   // 도망칠 때는 기본 이속(155)보다 빠르게
+      return;
+    }
+    if (this.hp < this.maxHp) this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.05 * dt);
+  }
+
   update(dt) {
     this.moving = false;
+    if (this.mtype === 'crab') return this.updateCrab(dt);
     this.tickCombat(dt);
     if (this.resetting) {
       this.hp = Math.min(this.maxHp, this.hp + this.maxHp * 0.3 * dt);
@@ -493,15 +513,31 @@ class Camp {
     this.timer = this.info.first != null ? this.info.first : CFG.CAMP_FIRST;
     this.monsters = [];
     this.up = false;
+    this.done = false;   // 'once' 캠프(전령·유충)가 이미 끝났는지
   }
 
   update(dt) {
     if (this.up) {
-      if (this.monsters.every(m => !m.alive)) { this.up = false; this.timer = this.info.respawn; this.monsters = []; }
+      if (this.monsters.every(m => !m.alive)) {
+        this.up = false; this.monsters = [];
+        if (this.info.once) this.done = true; else this.timer = this.info.respawn;
+        return;
+      }
+      // 전령·유충: 시간 안에 못 잡으면 보상 없이 사라짐
+      if (this.info.expire && this.game.time >= this.info.expire) this.despawn();
       return;
     }
+    if (this.done) return;
     this.timer -= dt;
     if (this.timer <= 0) this.spawn();
+  }
+
+  // 잡지 못해 시간이 지나 사라짐 (처치 보상 없음)
+  despawn() {
+    for (const m of this.monsters) { m.alive = false; m.hp = 0; }
+    this.up = false; this.monsters = [];
+    if (this.info.once) this.done = true; else this.timer = this.info.respawn;
+    if (this.info.expireMsg) this.game.announce(this.info.expireMsg, 'info');
   }
 
   spawn() {
@@ -518,7 +554,7 @@ class Camp {
       this.monsters.push(m);
       this.game.addUnit(m);
     });
-    if (this.type === 'dragon' || this.type === 'baron') this.game.announce(this.info.label + '이(가) 나타났습니다!', 'info');
+    if (this.info.notify) this.game.announce(this.info.label + '이(가) 나타났습니다!', 'info');
   }
 
   aggroAll(src) {

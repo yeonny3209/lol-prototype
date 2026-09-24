@@ -50,14 +50,21 @@ const WEST_PATHS = [
   [P(1450, 3000), P(1700, 2050)],
 ];
 const CAMP_TYPES = {
-  blue:    { units: ['blueBuff'], respawn: 240, label: '푸른 파수꾼' },
-  gromp:   { units: ['gromp'], respawn: 120, label: '거대 두꺼비' },
-  wolves:  { units: ['bigWolf', 'wolf', 'wolf'], respawn: 120, label: '늑대' },
-  red:     { units: ['redBuff'], respawn: 240, label: '붉은 덩굴정령' },
-  krugs:   { units: ['bigKrug', 'krug'], respawn: 120, label: '돌거북' },
-  raptors: { units: ['bigRaptor', 'raptor', 'raptor', 'raptor'], respawn: 120, label: '칼날부리' },
-  dragon:  { units: ['dragon'], respawn: 300, label: '용', first: CFG.DRAGON_FIRST },
-  baron:   { units: ['baron'], respawn: 360, label: '공허의 군주', first: CFG.BARON_FIRST },
+  // 첫 스폰: 블루/레드/늑대/칼날부리 0:55, 돌거북/두꺼비 1:07 (실제 롤 기준, CFG.CAMP_FIRST/KRUG_GROMP_FIRST)
+  blue:    { units: ['blueBuff'], respawn: 300, label: '푸른 파수꾼' },
+  gromp:   { units: ['gromp'], respawn: 135, first: CFG.KRUG_GROMP_FIRST, label: '거대 두꺼비' },
+  wolves:  { units: ['bigWolf', 'wolf', 'wolf'], respawn: 135, label: '늑대' },
+  red:     { units: ['redBuff'], respawn: 300, label: '붉은 덩굴정령' },
+  krugs:   { units: ['bigKrug', 'krug'], respawn: 135, first: CFG.KRUG_GROMP_FIRST, label: '돌거북' },
+  raptors: { units: ['bigRaptor', 'raptor', 'raptor', 'raptor'], respawn: 135, label: '칼날부리' },
+  dragon:  { units: ['dragon'], respawn: 300, label: '용', first: CFG.DRAGON_FIRST, notify: true },
+  baron:   { units: ['baron'], respawn: 360, label: '공허의 군주', first: CFG.BARON_FIRST, notify: true },
+  // 전령: 15:00에 바론 둥지에 나타나 19:55까지 있다가, 죽이거나 못 잡으면 사라지고 20:00에 바론이 나옵니다
+  herald:  { units: ['herald'], first: CFG.HERALD_FIRST, once: true, expire: CFG.HERALD_EXPIRE, label: '협곡의 전령', notify: true, expireMsg: '전령이 협곡을 떠났습니다' },
+  // 공허 유충: 8:00에 한 번만 3마리 등장, 14:45까지 못 잡으면 사라집니다
+  voidgrub: { units: ['voidgrub', 'voidgrub', 'voidgrub'], first: CFG.GRUB_FIRST, once: true, expire: CFG.GRUB_EXPIRE, label: '공허 유충', notify: true },
+  // 바위게: 강 위아래 두 곳, 2:55 첫 스폰 · 2:30 재생성
+  crab:    { units: ['crab'], respawn: CFG.SCUTTLE_RESPAWN, first: CFG.SCUTTLE_FIRST, label: '바위게' },
 };
 const QUADRANTS = [
   { f: p => p, types: { A: 'blue', B: 'gromp', C: 'wolves' } },         // 서 (블루 탑 정글)
@@ -67,11 +74,18 @@ const QUADRANTS = [
 ];
 const BARON_PIT = P(2500, 2100);
 const DRAGON_PIT = reflectP(BARON_PIT);
+// 강 위아래 바위게 자리 (블루 탑 정글 쪽 강, 레드 탑 정글 쪽 강 - 점대칭)
+const CRAB_TOP = P(3650, 3250);
+const CRAB_BOT = reflectP(CRAB_TOP);
 
 const CAMP_DEFS = [];
 for (const q of QUADRANTS) for (const c of WEST_CAMPS) CAMP_DEFS.push({ type: q.types[c.slot], pos: q.f(c.pos) });
 CAMP_DEFS.push({ type: 'baron', pos: BARON_PIT });
 CAMP_DEFS.push({ type: 'dragon', pos: DRAGON_PIT });
+CAMP_DEFS.push({ type: 'herald', pos: BARON_PIT });    // 바론과 같은 자리, 시간대만 다름
+CAMP_DEFS.push({ type: 'voidgrub', pos: P(4250, 3750) });
+CAMP_DEFS.push({ type: 'crab', pos: CRAB_TOP });
+CAMP_DEFS.push({ type: 'crab', pos: CRAB_BOT });
 
 // ---------- 지형 도형 ----------
 const MapData = {

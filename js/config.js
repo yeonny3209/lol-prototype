@@ -24,9 +24,16 @@ const CFG = {
   RECALL_TIME: 8,
   INHIB_RESPAWN: 240,
 
-  CAMP_FIRST: 60,
+  CAMP_FIRST: 55,         // 블루/레드/늑대/칼날부리 첫 스폰 (0:55, 실제 롤 기준)
+  KRUG_GROMP_FIRST: 67,   // 돌거북/두꺼비는 그보다 조금 늦게 (1:07)
   DRAGON_FIRST: 300,
-  BARON_FIRST: 900,
+  BARON_FIRST: 1200,      // 20:00 (실제 롤 기준)
+  HERALD_FIRST: 900,      // 15:00, 바론 둥지에 나타났다가 바론 스폰 직전 사라짐
+  HERALD_EXPIRE: 1195,    // 19:55
+  GRUB_FIRST: 480,        // 8:00, 한 번만 나타남
+  GRUB_EXPIRE: 885,       // 14:45
+  SCUTTLE_FIRST: 175,     // 2:55
+  SCUTTLE_RESPAWN: 150,   // 2:30
 
   FOUNTAIN_RADIUS: 700,
   CRIT_MULT: 1.75,
@@ -88,13 +95,19 @@ const MONSTER_STATS = {
   krug:      { name: '돌거북', hp: 550, ad: 25, as: 0.6, armor: 10, range: 150, radius: 30, gold: 20, xp: 30, ms: 285, color: '#b8966b' },
   dragon:    { name: '화염 용', hp: 3800, ad: 110, as: 0.5, armor: 21, mr: 30, ccImmune: true, range: 500, radius: 80, gold: 150, xp: 400, ms: 330, projSpeed: 900, buff: 'dragon', color: '#ff7b2e' },
   baron:     { name: '공허의 군주', hp: 9000, ad: 160, as: 0.75, armor: 70, mr: 70, ccImmune: true, range: 600, radius: 110, gold: 300, xp: 800, ms: 0, projSpeed: 1000, buff: 'baron', color: '#9a5cff' },
+  // 전령: 15:00~19:55에 바론 둥지에 나타남 (epic 취급이라 game.time 비례로 자동 강화됨). 죽이면 '전령의 눈'을 얻습니다.
+  herald:    { name: '협곡의 전령', hp: 3600, ad: 130, as: 0.6, armor: 40, mr: 40, ccImmune: true, range: 250, radius: 75, gold: 100, xp: 240, ms: 340, projSpeed: 0, color: '#5ec9a8' },
+  // 공허 유충: 8:00에 한 번만 3마리 등장. 처치하면 '공허의 손길' 중첩 (구조물에 고정 피해 추가, 최대 3중첩)
+  voidgrub:  { name: '공허 유충', hp: 1250, ad: 20, as: 0.7, armor: 20, mr: 20, range: 150, radius: 34, gold: 30, xp: 65, ms: 350, color: '#8a5fd6' },
+  // 바위게: 공격받으면 도망만 치고 반격하지 않습니다 (역할군 퀘스트·정글 동료 간식 대상 아님)
+  crab:      { name: '바위게', hp: 550, ad: 0, as: 0.6, armor: 35, mr: 35, range: 0, radius: 40, gold: 70, xp: 90, ms: 155, color: '#3fa0a8' },
 };
 
 const BUFF_INFO = {
   blue:   { name: '푸른 기운', dur: 120, desc: '체력 재생 +6/초, 마나 재생 +5/초, 스킬 가속 +10, 이동 속도 +8%', color: '#4aa8ff', icon: '💧' },
   red:    { name: '붉은 기운', dur: 120, desc: '공격력 +15, 기본 공격에 추가 고정 피해', color: '#ff6a3a', icon: '🔥' },
   dragon: { name: '용의 힘', dur: 0, desc: '공격력/주문력/방어력 영구 증가 (중첩)', color: '#ff7b2e', icon: '🐉' },
-  baron:  { name: '군주의 권능', dur: 180, desc: '공격력 +40, 주문력 +40, 귀환 4초, 주변 미니언 강화', color: '#9a5cff', icon: '👁' },
+  baron:  { name: '군주의 권능', dur: 180, desc: '공격력 +45, 주문력 +45(추정), 강화된 귀환(귀환 시간 절반), 주변 아군 미니언이 주는 피해 50% 증가·받는 피해 50% 감소', color: '#9a5cff', icon: '👁' },
 };
 
 const SPELLS = {
@@ -138,5 +151,5 @@ const ROLES = {
   bot: { name: '원딜', lane: 'bot' },
   support: { name: '서포터', lane: 'bot' },
 };
-const LARGE_MONSTERS = new Set(['blueBuff', 'redBuff', 'gromp', 'bigWolf', 'bigRaptor', 'bigKrug']);
-const EPIC_MONSTERS = new Set(['dragon', 'baron']);
+const LARGE_MONSTERS = new Set(['blueBuff', 'redBuff', 'gromp', 'bigWolf', 'bigRaptor', 'bigKrug', 'voidgrub']);
+const EPIC_MONSTERS = new Set(['dragon', 'baron', 'herald']);

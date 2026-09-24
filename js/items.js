@@ -1,6 +1,10 @@
 // ===== 아이템 데이터 / 상점 / 인벤토리 =====
 const DD_VER = LOL_DATA.version;
 const DD_CDN = 'https://ddragon.leagueoflegends.com/cdn/';
+// 전령의 눈 사용 범위·피해량. 실제 롤은 3000 고정 피해지만, 이 게임 포탑은 체력이 훨씬 낮아(2800~3000)
+// 그대로 쓰면 항상 한 방에 파괴되므로 비중을 맞춰 줄였습니다.
+const HERALD_EYE_RANGE = 700;
+const HERALD_EYE_DMG = 1400;
 
 const ITEM_DB = {};
 for (const id in LOL_DATA.items) ITEM_DB[id] = Object.assign({}, LOL_DATA.items[id]);
@@ -11,6 +15,8 @@ ITEM_DB['2010'] = { id: '2010', name: '굳건한 의지의 완전한 비스킷',
 ITEM_DB['2150'] = { id: '2150', name: '탐욕의 영약', cost: 0, base: 0, sell: 0, from: [], into: [], depth: 1, tags: ['Consumable'], stats: {}, shop: false, icon: '2139' };
 ITEM_DB['2151'] = { id: '2151', name: '힘의 영약', cost: 0, base: 0, sell: 0, from: [], into: [], depth: 1, tags: ['Consumable'], stats: {}, shop: false, icon: '2140' };
 ITEM_DB['2152'] = { id: '2152', name: '숙련의 영약', cost: 0, base: 0, sell: 0, from: [], into: [], depth: 1, tags: ['Consumable'], stats: {}, shop: false, icon: '2138' };
+// 전령을 처치하면 얻는 소모품. Data Dragon 목록엔 없지만 아이콘 파일(2202)은 CDN에 그대로 있습니다.
+ITEM_DB['heraldEye'] = { id: 'heraldEye', name: '전령의 눈', cost: 0, base: 0, sell: 0, from: [], into: [], depth: 1, tags: ['Consumable'], stats: {}, shop: false, icon: '2202' };
 
 const TIER3_BOOTS = ['3168', '3170', '3171', '3172', '3173', '3174', '3175'];
 const SUPPORT_UPGRADES = ['3869', '3870', '3871', '3876', '3877'];
@@ -32,6 +38,7 @@ const ITEM_USE = {
   '3340': { kind: 'wardTrinket', desc: '<b>사용 (최대 2회 충전):</b> 커서 위치에 투명 와드를 설치합니다 (90~120초 유지, 충전 240~120초).' },
   '3363': { kind: 'farsight', desc: '<b>사용:</b> 멀리(최대 4000) 떨어진 곳에 망원형 와드를 설치해 시야를 밝힙니다 (재사용 198~99초). 9레벨부터 교체 가능.' },
   '3364': { kind: 'lens', desc: '<b>사용:</b> 주변의 보이지 않는 적과 와드를 찾아냅니다 (재사용 160~100초). 9레벨부터 교체 가능. <i class="est">※적 와드가 없어 현재는 효과 없음</i>' },
+  heraldEye: { kind: 'heraldCharge', desc: '<b>사용:</b> 근처(' + HERALD_EYE_RANGE + ') 적 구조물 앞에서 2.5초 정신 집중 후 전령을 소환해 돌진시켜 ' + HERALD_EYE_DMG + '의 고정 피해를 입힙니다.' + EST },
 };
 for (const id of ['3866']) ITEM_USE[id] = { kind: 'supportWard', charges: 3, desc: '<b>사용 (3회 충전):</b> 투명 와드를 설치합니다. 상점에 들르면 충전됩니다.' };
 for (const id of ['3867'].concat(SUPPORT_UPGRADES)) ITEM_USE[id] = { kind: 'supportWard', charges: 4, desc: '<b>사용 (4회 충전):</b> 투명 와드를 설치합니다. 상점에 들르면 충전됩니다.' };
@@ -211,6 +218,15 @@ const Shop = {
 const Items = {
   slotOf(h, ref) { return ref === 'trinket' ? h.trinket : ref === 'quest' ? h.questSlot : h.items[ref]; },
 
+  // 몬스터 처치 등으로 빈 칸에 아이템을 무료로 넣어 줍니다 (칸이 없으면 그냥 사라집니다)
+  grantFree(h, id, count = 1) {
+    const slot = h.items.findIndex(s => !s);
+    if (slot < 0) return false;
+    h.items[slot] = { id, count, st: {} };
+    h.recalcStats();
+    return true;
+  },
+
   transform(h, ref, into) {
     const s = this.slotOf(h, ref);
     if (!s) return;
@@ -332,6 +348,24 @@ const Items = {
           g.addEffect({ type: 'pulse', x: h.x, y: h.y, r: 600, color: '#ff8a8a', dur: 0.6 });
           h.itemCds[cdKey] = lerp(160, 100, (h.level - 1) / 17);
           return true;
+        case 'heraldCharge': {
+          if (h.channel) return false;
+          let target = null, bd = HERALD_EYE_RANGE;
+          for (const u of g.structures) {
+            if (!u.alive || u.team === h.team || !g.isVulnerable(u)) continue;
+            const d = dist(h.x, h.y, u.x, u.y) - u.radius;
+            if (d < bd) { bd = d; target = u; }
+          }
+          if (!target) { h.hint('근처에 사용할 적 구조물이 없습니다'); return false; }
+          h.startChannel('전령의 눈', 2.5, () => {
+            if (target.alive) {
+              g.dealDamage(h, target, HERALD_EYE_DMG, { type: 'true', silent: false });
+              g.addEffect({ type: 'pulse', x: target.x, y: target.y, r: 90, color: '#5ec9a8', dur: 0.6 });
+            }
+            this.consume(h, ref);
+          });
+          return true;
+        }
       }
       return false;
     }

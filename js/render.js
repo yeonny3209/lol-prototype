@@ -239,6 +239,11 @@ const Renderer = {
     if (u.hitFlash > 0 && u.alive && !u.isStructure) {
       this.circle(ctx, u.x, u.y, u.radius, 'rgba(255,255,255,' + (u.hitFlash * 4).toFixed(2) + ')');
     }
+    // 군주의 권능: 근처 아군 챔피언이 강화해 준 미니언은 보라색 기운이 돕니다
+    if (u.kind === 'minion' && u.alive && game.baronNear(u)) {
+      const pulse = 0.45 + 0.2 * Math.sin(game.time * 6);
+      this.circle(ctx, u.x, u.y, u.radius + 9, 'rgba(154,92,255,0.1)', 'rgba(180,120,255,' + pulse.toFixed(2) + ')', 2.5);
+    }
     // 기절: 머리 위로 도는 별
     if (u.stunT > 0 && u.alive) {
       for (let i = 0; i < 3; i++) {
@@ -346,6 +351,33 @@ const Renderer = {
         ctx.lineTo(u.x + Math.cos(ang) * r * 1.45, u.y + Math.sin(ang) * r * 1.45);
         ctx.lineTo(u.x + Math.cos(ang + 0.2) * r, u.y + Math.sin(ang + 0.2) * r);
         ctx.fill();
+      }
+    }
+    if (u.mtype === 'herald') {
+      ctx.strokeStyle = '#2f7a63'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+      for (const side of [-1, 1]) for (const k of [0.5, 1, 1.5]) {
+        const ang = a + Math.PI + side * (0.3 + k * 0.25);
+        ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(u.x + Math.cos(ang) * r * 1.5, u.y + Math.sin(ang) * r * 1.5); ctx.stroke();
+      }
+      ctx.fillStyle = '#dff7ef';
+      ctx.beginPath(); ctx.moveTo(u.x + Math.cos(a) * r * 0.4, u.y + Math.sin(a) * r * 0.4);
+      ctx.lineTo(u.x + Math.cos(a) * r * 1.9, u.y + Math.sin(a) * r * 1.9);
+      ctx.lineTo(u.x + Math.cos(a + 0.28) * r * 0.7, u.y + Math.sin(a + 0.28) * r * 0.7);
+      ctx.fill();
+    }
+    if (u.mtype === 'voidgrub') {
+      ctx.fillStyle = '#5a3a99';
+      for (let i = 0; i < 6; i++) {
+        const ang = i / 6 * TAU;
+        this.circle(ctx, u.x + Math.cos(ang) * r * 0.95, u.y + Math.sin(ang) * r * 0.95, r * 0.28, '#5a3a99');
+      }
+    }
+    if (u.mtype === 'crab') {
+      ctx.strokeStyle = s.color; ctx.lineWidth = 6; ctx.lineCap = 'round';
+      for (const side of [-1, 1]) {
+        const bx = u.x + Math.cos(a + side * 1.9) * r * 0.9, by = u.y + Math.sin(a + side * 1.9) * r * 0.9;
+        ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(bx, by); ctx.stroke();
+        this.circle(ctx, bx, by, r * 0.32, s.color, 'rgba(0,0,0,0.5)', 2);
       }
     }
     this.circle(ctx, u.x, u.y, r, s.color, 'rgba(0,0,0,0.6)', 4);
